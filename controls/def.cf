@@ -119,7 +119,7 @@ bundle common def
       "trustkeysfrom"
         slist => {
                    # COMMENT THE NEXT LINE OUT AFTER ALL MACHINES HAVE BEEN BOOTSTRAPPED.
-                   "0.0.0.0/0", # allow any IP
+		   "134.100.0.0/16", # bootstrapping only allowed from UNIHH                    
         },
         comment => "Define from which machines keys can be trusted",
         ifvarclass => and(not(isvariable("override_data_trustkeysfrom")),

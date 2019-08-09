@@ -24,7 +24,10 @@ body common control
                           main,
                           @(cfengine_enterprise_hub_ha.management_bundles),
                           @(def.bundlesequence_end),
-
+			  
+                         # Hamburg Observatory bundles
+                          hs,
+                          @(hs.bundles),
       };
 
       inputs => {
@@ -45,6 +48,9 @@ body common control
 
                   # autorun system
                   @(services_autorun.inputs),
+
+                 # Added policies
+                  @(hs.inputs),
 
                   "services/main.cf",
       };
@@ -302,4 +308,74 @@ bundle common services_autorun
 
       "DEBUG $(this.bundle): adding input='$(found_inputs)'"
         ifvarclass => isvariable("found_inputs");
+}
+
+bundle common hs
+# @brief Set up inputs for Hamburg observatory
+{
+  vars:
+
+      "inputs" slist => { };
+      "bundles" slist => { };
+
+      "file_repository" string => "/data/repository";
+
+   ubuntu::
+
+      "inputs" slist => { "backup.cf",
+                          "central.cf",
+                          "cloud.cf",
+                          "config.cf",
+                          "cron.cf",
+                          "cups.cf",
+                          "hello_world.cf",
+                          "kerberos.cf",
+                          "ldap.cf",
+                          "mount.cf",
+                          "users.cf"
+                        };
+
+      "bundles" slist => {
+                           # Hello world test
+                           #"hello_world",
+
+                           # Packages, users, hosts, etc.
+                           "central",
+                           "users",
+
+                           # Network
+                           "network",
+                           "firewall",
+
+                           # Authentication and access
+                           "kerberos",
+                           "ldap",
+                           "sshd",
+                           "sudoers",
+
+                           # NFS, SMB, and cloud
+                           "export",
+                           "autofs",
+                           "samba",
+                           "cloud",
+
+                           # Backup
+                           "backup",
+
+                           # Cron
+                           "cron",
+
+                           # Printing
+                           "cups",
+
+                           # Misc config
+                           "imagemagick",
+                           "snapfix",
+                         };
+
+  reports:
+
+    verbose_mode::
+      "$(this.bundle) input=$(inputs)";
+      "$(this.bundle) bundle=$(bundles)";
 }

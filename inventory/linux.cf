@@ -17,6 +17,11 @@ bundle common inventory_linux
 
     os_release_has_version::
       "os_release_version" string => canonify("$(version_array[1])");
+      "os_release_numbers" slist => string_split("$(os_release_version)", "_", "2");
+      "os_release_major" string => nth(os_release_numbers, 0);
+
+    os_release_has_codename::
+      "os_release_codename" string => canonify("$(codename_array[1])");
 
     has_proc_1_cmdline::
       "proc_1_cmdline_split" slist => string_split(readfile("/proc/1/cmdline", "512"), " ", "2"),
@@ -52,6 +57,11 @@ bundle common inventory_linux
                                                         $(os_release_info),
                                                         "version_array"),
       comment => "Extract VERSION_ID= line from os-release to version_array";
+      
+      "os_release_has_codename" expression => regextract('^VERSION_CODENAME=([a-zA-Z]+)$',
+                                                         $(os_release_info),
+                                                         "codename_array"),
+      comment => "Extract VERSION_CODENAME= line from os-release to codename_array";
 
       "has_proc_1_cmdline" expression => fileexists("/proc/1/cmdline"),
       comment => "Check if we can read /proc/1/cmdline";
@@ -61,6 +71,9 @@ bundle common inventory_linux
 
     os_release_has_version::
       "$(os_release_id)_$(os_release_version)" expression => "any";
+      
+    os_release_has_codename::
+      "$(os_release_codename)" expression => "any";
 
     has_proc_1_cmdline::
       "systemd" expression => strcmp(lastnode($(proc_1_process), "/"), "systemd"),
