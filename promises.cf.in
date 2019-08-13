@@ -25,6 +25,9 @@ body common control
                           @(cfengine_enterprise_hub_ha.management_bundles),
                           @(def.bundlesequence_end),
 
+                          # Hamburg Observatory bundles
+                          hs,
+                          @(hs.bundles),
       };
 
       inputs => {
@@ -47,6 +50,9 @@ body common control
                   @(services_autorun.inputs),
 
                   "services/main.cf",
+
+                  # Added policies
+                  @(hs.inputs),
       };
 
       version => "CFEngine Promises.cf @VERSION@";
@@ -316,4 +322,26 @@ bundle common services_autorun
 
       "DEBUG $(this.bundle): adding input='$(found_inputs)'"
         ifvarclass => isvariable("found_inputs");
+}
+
+bundle common hs
+# @brief Set up inputs for Hamburg observatory                                                                                                                        
+{
+  vars:
+
+      "inputs" slist => { };
+      "bundles" slist => { };
+
+      "file_repository" string => "/data/repository";
+
+    ubuntu::
+
+      "inputs" slist => {
+
+                        };
+
+      "bundles" slist => {
+
+                          };
+
 }
