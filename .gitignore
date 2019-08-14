@@ -37,3 +37,6 @@ modules/packages/zypper
 
 # Atom-IDE
 .ropeproject
+
+# emacs
+*~

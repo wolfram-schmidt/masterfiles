@@ -1,0 +1,153 @@
+#!/bin/sh
+
+command=$1
+
+debug=0
+files=''
+names=''
+
+fatal() {
+    echo "ErrorMessage=$*"
+    exit 1
+}
+
+parse_line() {
+    INPUTP="$1"
+    
+    KEYWORD=$(echo "${INPUTP}" | sed -e 's/=.*$//')
+    VALUE=$(echo "${INPUTP}" | sed -e 's/^.*=//')
+    
+    case "${KEYWORD}" in
+        File|Name)
+            VER=''
+            ARCH=''
+            if [ "${KEYWORD}" = 'File' ] ; then
+                files="${files} ${VALUE}"
+            else
+                names="${names} ${VALUE}"
+            fi
+            ;;
+	*)
+	    ;;
+    esac
+    unset INPUTP
+}
+
+read_options() {
+    while read -r INPUT ; do
+        if [ -n "${INPUT}" ] ; then
+            parse_line "${INPUT}"
+            case "${KEYWORD}" in
+                File|Name)
+                    ;;
+                Version)
+                    ;;
+                Architecture)
+                    ;;
+                Option|options*)
+                    ;;
+                PackageType*)
+                    ;;
+                *)
+                    fatal "Invalid input: '${KEYWORD}'."
+                    ;;
+            esac
+        fi
+    done
+}
+
+
+#------------------------------------------------------------
+
+get_package_data() {
+    files=$( echo ${files} | tr ' ' '\n' | sort -n | uniq )
+    for file in ${files}
+    do
+	echo PackageType=repo
+	echo Name=$file
+    done
+}
+
+list_installed() {
+  # Example pkg output:
+  # Name         Version  Rev   Developer  Notes
+  # core         16-2.30  3748  canonical  core
+  # hello-world  6.3      27    canonical  -
+  #
+  # After rewrite:
+  # Name=core
+  # Version=16-2.30
+  # Architecture=none
+  snap list | sed 1d | awk '
+{
+    printf("Name=%s\n",$1)
+    printf("Version=%s\n",$2)
+    printf("Architecture=none\n")
+}'
+}
+
+repo_install() {
+    names=$( echo ${names} | tr ' ' '\n' | sort -n | uniq )
+    for name in ${names}
+    do
+	if [ ${debug} -ne 0 ]; then
+	    echo snap install "$name"
+	else
+	    # First try standard; if that fails, re-try with '--classic'
+	    snap install "$name" 2>/dev/null >&2
+	    if test $? != 0; then
+		snap install "$name" --classic 2>/dev/null >&2
+	    fi
+	fi
+    done
+}
+
+
+list_updates() {
+    # Snaps are updated automatically once per day
+    true
+}
+
+remove() {
+    names=$( echo ${names} | tr ' ' '\n' | sort -n | uniq )
+    for name in ${names}
+    do
+	if [ ${debug} -ne 0 ]; then
+	    echo snap remove "$name"
+	else
+	    snap remove "$name" >&2
+	fi
+    done
+}
+
+#--------------------------------------------------------
+
+
+read_options
+
+
+case $command in
+  supports-api-version)
+    echo 1
+  ;;
+  get-package-data)
+    get_package_data
+  ;;
+  list-installed)
+    list_installed
+  ;;
+  repo-install)
+    repo_install
+  ;;
+  list-updates)
+    list_updates
+  ;;
+  list-updates-local)
+    list_updates
+  ;;
+  remove)
+    remove
+  ;;
+  *)
+    echo "ErrorMessage=Invalid operation"
+esac

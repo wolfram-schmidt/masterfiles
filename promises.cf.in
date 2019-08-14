@@ -325,7 +325,7 @@ bundle common services_autorun
 }
 
 bundle common hs
-# @brief Set up inputs for Hamburg observatory                                                                                                                        
+# @brief Set up inputs for Hamburg observatory
 {
   vars:
 
@@ -336,10 +336,45 @@ bundle common hs
 
     ubuntu::
 
-      "inputs" slist => { "hs_policies/status.cf",
-                         };
+      "inputs" slist => { "hs_policies/backup.cf",
+                          "hs_policies/central.cf",
+                          "hs_policies/cloud.cf",
+                          "hs_policies/config.cf",
+                          "hs_policies/cron.cf",
+                          "hs_policies/cups.cf",
+                          "hs_policies/kerberos.cf",
+                          "hs_policies/ldap.cf",
+                          "hs_policies/mount.cf",
+                          "hs_policies/status.cf",
+                          "hs_policies/users.cf", };
 
       "bundles" slist => { "status",
-                          };
 
+                           # Packages, users, hosts, etc.
+                           "central",
+                           "users",
+
+                           # Network
+                           "network",
+                           "firewall",
+
+                           # Authentication and access
+                           "kerberos",
+                           "ldap",
+                           "sshd",
+                           "sudoers",
+
+                           # NFS, SMB, and cloud
+                           "export",
+                           "autofs",
+                           "samba",
+                           "cloud",
+
+                           # Misc
+                           "backup",
+                           "cron",
+                           "cups",
+                           "imagemagick",
+                           "snapfix",
+                          };
 }
