@@ -336,12 +336,10 @@ bundle common hs
 
     ubuntu::
 
-      "inputs" slist => {
+      "inputs" slist => { "hs_policies/status.cf",
+                         };
 
-                        };
-
-      "bundles" slist => {
-
+      "bundles" slist => { "status",
                           };
 
 }
