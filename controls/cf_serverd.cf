@@ -13,6 +13,10 @@ body server control
       # for "openssl ciphers". Default is "AES256-GCM-SHA384:AES256-SHA"
       #allowciphers          => "AES256-GCM-SHA384:AES256-SHA";
 
+      # Minimum required version of TLS. Set to "1.0" if you need clients
+      # running CFEngine in a version lower than 3.7.0 to connect.
+      #allowtlsversion => "1.1";
+
       # List of hosts that may connect (change the ACL in def.cf)
       allowconnects         => { "127.0.0.1" , "134.100.120.0/24", "134.100.121.0/24", @(def.acl) };
 
@@ -86,12 +90,6 @@ bundle server access_rules()
       if => isdir( "$(def.dir_masterfiles)/" ),
       admit => { @(def.acl) };
 
-      "$(def.dir_software)/"
-      handle => "server_access_grant_access_datafiles",
-      comment => "Grant access to software updates",
-      if => isdir( "$(def.dir_software)/" ),
-      admit => { @(def.acl) };
-
       "$(def.dir_bin)/"
       handle => "server_access_grant_access_binary",
       comment => "Grant access to binary for cf-runagent",
@@ -118,6 +116,15 @@ bundle server access_rules()
       if => isdir( "$(def.dir_templates)/" ),
       admit => { @(def.acl) };
 
+    policy_server|am_policy_hub::
+
+      "$(def.dir_master_software_updates)/" -> { "ENT-4953" }
+        handle => "server_access_grant_access_master_software_updates",
+        shortcut => "master_software_updates",
+        comment => "Grant access for hosts to download cfengine packages for self upgrade",
+        if => isdir( "$(sys.workdir)/master_software_updates" ),
+        admit => { @(def.acl) };
+
       enterprise_edition.policy_server::
         "collect_calls"
           resource_type => "query",
@@ -136,16 +143,34 @@ bundle server access_rules()
       if => isdir( "$(sys.workdir)/ppkeys/" ),
       admit => { @(def.policy_servers) };
 
-      # Allow slave hub to synchronize cf_robot and appsettings content.
+      # Allow slave hub to synchronize cf_robot and appsettings, application
+      # config config, ldap config settings, and ldap api config settings.
       # Files are containing configuration that must be the same on all hubs.
       "$(sys.workdir)/httpd/htdocs/application/config/cf_robot.php"
       handle => "server_access_grant_access_cf_robot",
       comment => "Grant access to cf_robot file for HA hubs",
       admit => { @(def.policy_servers) };
 
-      "$(sys.workdir)/share/GUI/application/config/appsettings.php"
+      "$(sys.workdir)/httpd/htdocs/application/config/appsettings.php"
       handle => "server_access_grant_access_appsettings",
       comment => "Grant access to appsettings for HA hubs",
+      admit => { @(def.policy_servers) };
+
+      "$(sys.workdir)/httpd/htdocs/application/config/config.php" -> { "ENT-4944" }
+      handle => "server_access_grant_access_application_config_config_php",
+      comment => "Grant access to application config for HA hubs",
+      admit => { @(def.policy_servers) };
+
+
+      "$(sys.workdir)/httpd/htdocs/ldap/config/settings.php" -> { "ENT-4944" }
+      handle => "server_access_grant_access_ldap_config_settings_php",
+      comment => "Grant access to ldap config settings for HA hubs",
+      admit => { @(def.policy_servers) };
+
+
+      "$(sys.workdir)/httpd/htdocs/api/config/config.php" -> { "ENT-4944" }
+      handle => "server_access_grant_access_api_config_settings_php",
+      comment => "Grant access to LDAP api config for HA hubs",
       admit => { @(def.policy_servers) };
 
       # Allow access to notification_scripts directory so passive hub

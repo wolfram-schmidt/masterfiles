@@ -269,6 +269,24 @@ This [augments file][Augments] will enable this behavior for all clients.
 }
 ```
 
+### Disable limiting robot agents
+
+By default the MPF (Masterfiles Policy Framework) contains active policy that is intended to remediate a pathological condition where multiple agent component daemons (like cf-execd) are running concurrently.
+
+Define the class ```mpf_disable_cfe_internal_limit_robot_agents``` to disable this automatic remediation.
+
+```json
+{
+  "classes": {
+    "mpf_disable_cfe_internal_limit_robot_agents": [ "any" ]
+  }
+}
+```
+
+**History:**
+
+- Introduced in 3.15.0, 3.12.3, 3.10.7
+
 ### Automatically deploy masterfiles from Version Control
 
 On a CFEngine Enterprise Hub during the update policy if the class
@@ -318,6 +336,28 @@ This [augments file][Augments] will defines `trigger_upgrade` on hosts with IPv4
 - The negative look ahead regular expression is useful because it automatically
   turns off on hosts after they reach the target version.
 
+#### Configure path that software is served from for autonomous agent upgrades
+
+{% comment %}ENT-4953{% endcomment %}
+`def.master_software_updates` defines the path that cfengine policy servers
+share software updates from. Remote agents access this path via the
+`master_software_updates` *shortcut*. By default this path is
+`$(sys.workdir)/master_software_updates`. This path can be overridden via
+`vars.dir_master_software_updates` in augments.
+
+For example:
+
+```json
+{
+   "vars": {
+     "dir_master_software_updates": "/srv/cfengine-software-updates/"
+   }
+}
+```
+
+**History:**
+- Introduced 3.15.0, 3.12.3, 3.10.8
+
 ### Files considered for copy during policy updates
 
 The default update policy only copies files that match regular expressions
@@ -344,9 +384,36 @@ embedded
 [failsafe policy](https://github.com/cfengine/core/blob/master/libpromises/failsafe.cf) is
 used and it decides which files should be copied.
 
-### Enable or disable CFEngine components
+### Configuring component management
 
-#### persistent\_disable\_*DAEMON*
+The Masterfiles Policy Framework ships with policy to manage the components of CFEngine.
+
+By default, for hosts without systemd, this policy defaults to ensuring that components are running.
+
+On systemd hosts, the policy to manage component units is disabled by default.
+
+#### Enable management of components on systemd hosts
+
+To allow the Masterfiles Policy Framework to actively manage cfengine systemd units and state define the `mpf_enable_cfengine_systemd_component_management`.
+
+This example illustrates enabling management of components on systemd hosts having a class matching `redhat_8` via augments.
+
+```json
+{
+  "classes:" {
+    "mpf_enable_cfengine_systemd_component_management": [ "redhat_8" ]
+  }
+}
+```
+
+When enabled, the policy will render systemd unit files in `/etc/systemd/system` for managed services. Mustache templates for service units are in the *templates* directory in the root of the Masterfiles Policy Framework.
+
+When enabled, the policy will make sure that all units are enabled, unless they have been disabled by a persistent class or are explicitly listed as an agent to be disabled.
+
+#### Enable or disable CFEngine components
+
+##### Using persistent classes
+###### persistent\_disable\_*DAEMON*
 
 **Description:** Disable a CFEngine Enterprise daemon component persistently.
 
@@ -365,7 +432,7 @@ This [augments file][Augments] will ensure that `cf-monitord` is disabled on hos
 }
 ```
 
-#### clear_persistent\_disable\_*DAEMON*
+###### clear_persistent\_disable\_*DAEMON*
 
 **Description:** Re-enable a previously disabled CFEngine Enterprise daemon
 component.
@@ -379,6 +446,21 @@ hosts.
 {
   "classes": {
     "clear_persistent_disable_cf_monitord": [ "redhat" ]
+  }
+}
+```
+
+##### Using augments
+##### agents_to_be_disabled
+
+**Description:** list of agents to disable.
+
+This [augments file][Augments] is a way to specify that `cf-monitord` should be disabled on all hosts.
+
+```
+{
+  "vars": {
+    "agents_to_be_disabled": [ "cf-monitord" ]
   }
 }
 ```

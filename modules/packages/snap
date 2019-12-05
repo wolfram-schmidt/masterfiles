@@ -151,3 +151,4 @@ case $command in
   *)
     echo "ErrorMessage=Invalid operation"
 esac
+

@@ -90,9 +90,9 @@ bundle agent inventory_autorun
       "loadaverage" usebundle => cfe_autorun_inventory_loadaverage(),
       handle => "cfe_internal_autorun_loadaverage";
 
-      "ipv4 addresses"
-        usebundle => cfe_autorun_inventory_ipv4_addresses,
-        handle => "cfe_internal_autorun_ipv4_addresses";
+      "IP addresses" -> { "ENT-2552", "ENT-4987" }
+        usebundle => cfe_autorun_inventory_ip_addresses,
+        handle => "cfe_internal_autorun_ip_addresses";
 }
 
 bundle agent cfe_autorun_inventory_listening_ports
@@ -110,30 +110,60 @@ bundle agent cfe_autorun_inventory_listening_ports
                     values that make sense.";
 }
 
-bundle agent cfe_autorun_inventory_ipv4_addresses
+bundle agent cfe_autorun_inventory_ip_addresses
 # @brief Inventory ipv4 addresses
-# This will filter the loopback address (127.0.0.1, as it is likely not very interesting)
+# This will filter the ipv4 and ipv4 loopback address (127.0.0.1, ::as it is likely not very interesting)
 {
   vars:
-    "filter_reg"
-      string => "127\.0\.0\.1",
-      comment => "Addresses that match this regular expression will be filtered
-                  from the inventory for ipv4 addresses";
+      "ipv4_regex" -> { "ENT-4987" }
+        string => "\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\b";
+
+      "ipv4_loopback_regex" -> { "ENT-2552" }
+        string => "127\.0\.0\.1",
+        comment => "Addresses that match this regular expression will be filtered
+                    from the inventory for ipv4 addresses";
+
+      "ipv6_loopback_regex" -> { "ENT-4987" }
+        string => "::1",
+        comment => "Addresses that match this regular expression will be filtered
+                    from the inventory for ipv4 addresses";
 
     # Strings are displayed more beautifully in Mission Portal than lists, so
     # we first generate the list of addresses to be inventoried and then do
     # inventory using an array.
-    "ipv4_addresses"
-      slist => filter( $(filter_reg), "sys.ip_addresses", "true", "true", 999999999);
+      "ipv4_addresses"
+        slist => sort( filter( $(ipv4_regex), "sys.ip_addresses", "true", "false", inf), lex ),
+        if => not( isvariable( $(this.promiser) ));
 
-    "ipv4[$(ipv4_addresses)]"
-      string => "$(ipv4_addresses)",
-      meta => { "inventory", "attribute_name=IPv4 addresses" };
+      "ipv4_addresses_non_loopback" -> { "ENT-2552" }
+        slist => sort( filter( $(ipv4_loopback_regex), "$(this.bundle).ipv4_addresses", "true", "true", inf)),
+        if => not( isvariable( $(this.promiser) ));
+
+      "ipv4[$(ipv4_addresses_non_loopback)]" -> { "ENT-2552" }
+        string => "$(ipv4_addresses_non_loopback)",
+        meta => { "inventory", "attribute_name=IPv4 addresses" };
+
+      # sys.ip_addresses contains ipv4 and (as of 3.15.0) ipv6 addresses. We get
+      # the ipv6 addresses indirectly, based on excluding the ipv4 addresses
+      # (which we identify using a regular expression)
+
+      "ipv6_addresses" -> { "ENT-4987" }
+        slist => sort( difference( "sys.ip_addresses", "$(this.bundle).ipv4_addresses" ), lex),
+        if => not( isvariable( $(this.promiser) ));
+
+      "ipv4_addresses_non_loopback" -> { "ENT-4987" }
+        slist => sort( filter( $(ipv6_loopback_regex), "$(this.bundle).ipv4_addresses", "true", "true", inf)),
+        if => not( isvariable( $(this.promiser) ));
+
+      "ipv6[$(ipv6_addresses_non_loopback)]" -> { "ENT-4987" }
+        string => "$(ipv6_addresses_non_loopback)",
+        meta => { "inventory", "attribute_name=IPv6 addresses" };
 
   reports:
     DEBUG|DEBUG_cfe_autorun_inventory_ipv4_addresses::
       "DEBUG $(this.bundle)";
       "$(const.t)Inventorying: '$(ipv4_addresses)'";
+      "$(const.t)Inventorying: '$(ipv6_addresses)'";
 }
 
 bundle agent cfe_autorun_inventory_disk
@@ -524,34 +554,49 @@ bundle agent cfe_autorun_inventory_aws_ec2_metadata
       "cfe_aws_ec2_metadata_from_cache";
 }
 bundle agent cfe_autorun_inventory_aws_ec2_metadata_cache
-# @brief Cache ec2 metadata from http request for one day
+# @brief Cache ec2 metadata from http request
 #
 # Provides cache of ec2 instance metadata for inventory
 {
 
   vars:
-
     ec2_instance.!(disable_inventory_aws|disable_inventory_aws_ec2_metadata)::
-
-      "curl"      string => "$(paths.curl)";
-      "curl_opts" string => "--max-time 1 --connect-timeout 1 --silent";
       "URL"       string => "http://169.254.169.254/latest/dynamic/instance-identity/document";
       "cache"     string => "$(sys.statedir)/aws_ec2_metadata";
+      "response" -> { "ENT-4900" }
+        data => url_get($(URL), '{"url.max_content": 512000, "url.timeout": 1}'),
+        # To prevent `url_get` from firing on every agent run, this variable
+        # depends on a dummy command which does nothing but fires only once a day
+        depends_on => { "daily_dummy_job" };
 
   commands:
-
-    ec2_instance.!(disable_inventory_aws|disable_inventory_aws_ec2_metadata)::
-
-      "$(curl)"
-        args => "$(curl_opts) $(URL) -o $(cache)",
-        if => and( not( fileexists( $(cache) )),
-                   isexecutable( $(curl) ));
+    _stdlib_path_exists_true::
+      "/bin/true"
+        comment => "This promise is used for delaying execution of url_get, since locking does not work directly on vars type promises",
+        classes => kept_successful_command,
+        handle => "daily_dummy_job",
+        action => if_elapsed_day;
 
   files:
     ec2_instance.!(disable_inventory_aws|disable_inventory_aws_ec2_metadata)::
+
+    cfengine_3_10::
       "$(cache)"
-        delete => tidy,
-        file_select => days_old(1);
+        create => "true",
+        edit_line => lines_present( "$(response[content])" ),
+        edit_defaults => empty,
+        if => isvariable( response );
+
+@if minimum_version(3.11)
+      # template_method inline_mustache introduced in 3.11
+    !cfengine_3_10::
+      "$(cache)"
+        template_method => "inline_mustache",
+        edit_template_string => "{{{content}}}",
+        template_data => @(response),
+        create =>   "true",
+        if => isvariable( response );
+@endif
 }
 
 bundle agent cfe_aws_ec2_metadata_from_cache
@@ -829,7 +874,19 @@ bundle agent cfe_autorun_inventory_LLDP
 
   vars:
     !disable_inventory_LLDP.lldpctl_exec_exists::
-      "info" data => parsejson(execresult($(inventory_control.lldpctl_json), "noshell"));
+      # TODO When CFE-3108 is DONE, migrate to capturing only stdout
+      "info" -> { "CFE-3109", "CFE-3108" }
+        data => parsejson(execresult("$(inventory_control.lldpctl_json) 2>/dev/null", "useshell")),
+        if => not(isvariable("def.lldpctl_json")),
+        comment => "Not all versions of lldpctl support json, and because an
+        absent lldpd will result in an error on stderr resulting noisy logs and
+        failure to parse the json we redirect to dev null";
+
+      "info" -> { "CFE-3109" }
+        data => parsejson(execresult($(inventory_control.lldpctl_json), "noshell")),
+        if => isvariable("def.lldpctl_json"),
+        comment => "For safety, we do not run lldpctl in a shell if the path to
+        lldpctl is customized via augments";
 }
 
 bundle agent cfe_autorun_inventory_packages

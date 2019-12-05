@@ -120,6 +120,8 @@ bundle common paths
     linux::
       "path[lsattr]"        string => "/usr/bin/lsattr";
       "path[tar]"           string => "/bin/tar";
+      "path[true]"          string => "/bin/true";
+      "path[false]"         string => "/bin/false";
       "path[pgrep]"         string => "/usr/bin/pgrep";
       "path[getent]"        string => "/usr/bin/getent";
       "path[mailx]"         string => "/usr/bin/mailx";
@@ -345,6 +347,7 @@ bundle common paths
       "path[ethtool]"       string => "/usr/sbin/ethtool";
       "path[find]"          string => "/usr/bin/find";
       "path[free]"          string => "/usr/bin/free";
+      "path[getenforce]"    string => "/usr/sbin/getenforce";
       "path[grep]"          string => "/bin/grep";
       "path[hostname]"      string => "/bin/hostname";
       "path[init]"          string => "/sbin/init";
@@ -357,7 +360,9 @@ bundle common paths
       "path[ping]"          string => "/usr/bin/ping";
       "path[perl]"          string => "/usr/bin/perl";
       "path[printf]"        string => "/usr/bin/printf";
+      "path[restorecon]"    string => "/sbin/restorecon";
       "path[sed]"           string => "/bin/sed";
+      "path[semanage]"      string => "/usr/sbin/semanage";
       "path[sort]"          string => "/bin/sort";
       "path[test]"          string => "/usr/bin/test";
       "path[tr]"            string => "/usr/bin/tr";
@@ -376,6 +381,7 @@ bundle common paths
       "path[svc]"       string => "/sbin/service";
       "path[useradd]"   string => "/usr/sbin/useradd";
       "path[userdel]"   string => "/usr/sbin/userdel";
+      "path[usermod]"   string => "/usr/sbin/usermod";
       "path[yum]"       string => "/usr/bin/yum";
 
     darwin::
@@ -436,6 +442,7 @@ bundle common paths
       "path[ethtool]"       string => "/sbin/ethtool";
       "path[find]"          string => "/usr/bin/find";
       "path[free]"          string => "/usr/bin/free";
+      "path[getenforce]"    string => "/usr/sbin/getenforce";
       "path[grep]"          string => "/bin/grep";
       "path[hostname]"      string => "/bin/hostname";
       "path[init]"          string => "/sbin/init";
@@ -448,7 +455,9 @@ bundle common paths
       "path[ping]"          string => "/bin/ping";
       "path[perl]"          string => "/usr/bin/perl";
       "path[printf]"        string => "/usr/bin/printf";
+      "path[restorecon]"    string => "/sbin/restorecon";
       "path[sed]"           string => "/bin/sed";
+      "path[semanage]"      string => "/usr/sbin/semanage";
       "path[sort]"          string => "/usr/bin/sort";
       "path[test]"          string => "/usr/bin/test";
       "path[tr]"            string => "/usr/bin/tr";
