@@ -30,6 +30,16 @@ matrix:
         - sudo dpkg -i $FILE
 
     # JOB 3
+    - env: CF_VERSION=3.15.x
+      addons:
+        apt:
+          sources:
+            - sourceline: "deb https://cfengine-package-repos.s3.amazonaws.com/pub/apt/packages stable main"
+              key_url: https://cfengine-package-repos.s3.amazonaws.com/pub/gpg.key
+          packages:
+            - cfengine-community=3.15.*
+
+    # JOB 4
     - env: CF_VERSION=3.12.x
       addons:
         apt:
@@ -39,7 +49,7 @@ matrix:
           packages:
             - cfengine-community=3.12.*
 
-    # JOB 4
+    # JOB 5
     - env: CF_VERSION=3.10.x
       addons:
         apt:
@@ -59,7 +69,7 @@ script:
       exit;
   fi
   # Fetch the tags from upstream, even if we are running on a foreign clone;
-  # Needed for determine-version.py to work
+  # Needed for determine-version.sh to work
 - git remote add upstream https://github.com/cfengine/masterfiles.git;
   git fetch upstream 'refs/tags/*:refs/tags/*';
 - ./autogen.sh --without-core --prefix=$INSTDIR
@@ -79,7 +89,12 @@ script:
   fi;
   export IS_PRERELEASE
 - cd $TRAVIS_BUILD_DIR/..
-- git clone --depth=1 --branch $CF_VERSION https://github.com/cfengine/core
+- export RELEASE_TAG=$(/var/cfengine/bin/cf-agent --version | awk '{print $3}')
+- export BRANCH="$RELEASE_TAG"
+- if [ "$CF_VERSION" = "master" ]; then
+    export BRANCH="master";
+  fi
+- git clone --depth=1 --branch $BRANCH https://github.com/cfengine/core
 - chmod -R go-w .
 - cp core/tests/acceptance/*.cf.sub masterfiles/tests/acceptance/
 - umask 077

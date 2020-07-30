@@ -23,6 +23,16 @@ if ! type "$CFE_FR_EXTRACTOR" >/dev/null; then
   exit 1
 fi
 
+tries=6
+while [ $tries -gt 0 ] && ps -e | grep cf-hub >/dev/null; do
+  log "Waiting for cf-hub process to terminate before DB schema manipulation"
+  sleep 10;
+  tries=$(($tries - 1))
+done
+if [ $tries -eq 0 ]; then
+  log "Warning: cf-hub process running while doing schema manipulations!"
+fi
+
 # TODO: we should do some validation of the files here
 mkdir -p "$CFE_FR_SUPERHUB_IMPORT_DIR"
 no_drop_files=0
@@ -80,8 +90,11 @@ else
   for file in "$CFE_FR_SUPERHUB_IMPORT_DIR/"*".sql.$CFE_FR_COMPRESSOR_EXT.failed"; do
     log "Failed to import file '${file%%.failed}'"
 
-    # revert any changes by dropping the particular feeder's import schema (the
-    # original/in-use/previous schema is left intact)
+    log "Last lines of failure log ${file%%.failed}.log.$CFE_FR_COMPRESSOR_EXT"
+    "$CFE_FR_COMPRESSOR" $CFE_FR_DECOMPRESS_ARGS "${file%%.failed}.log.$CFE_FR_COMPRESSOR_EXT" | tail
+
+    log "Revert changes by dropping $hostkey feeder schema"
+    # (the original/in-use/previous schema is left intact)
     hostkey=$(basename "$file" | cut -d. -f1)
     "$CFE_BIN_DIR"/psql -U $CFE_FR_DB_USER -d cfdb -c "SELECT drop_feeder_schema('$hostkey');" || true
   done

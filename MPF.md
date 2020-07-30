@@ -369,12 +369,12 @@ This [augments file][Augments] ensures that only files ending in ```.cf```, ```.
 
 ```
 {
-  "vars:" {
-    "input_name_patterns": [ ".*\\.cf", ".*\\.dat",
-                             ".*\\.mustache",
-                             "cf_promises_release_id",
-                             ".*\\.json", ".*\\.yaml" ]
-  }
+    "vars": {
+        "input_name_patterns": [ ".*\\.cf", ".*\\.dat", ".*\\.txt", ".*\\.conf",
+            ".*\\.mustache", ".*\\.sh", ".*\\.pl", ".*\\.py", ".*\\.rb",
+            ".*\\.sed", ".*\\.awk", "cf_promises_release_id", ".*\\.json",
+            ".*\\.yaml", ".*\\.csv" ]
+    }
 }
 ```
 
@@ -889,6 +889,29 @@ For example:
 
 - Added in 3.13.0, 3.12.2
 
+### Change hub to client connection timeout
+
+By default, cf-hub times out a connection after 30 seconds.
+This can be configured in augments.
+
+For example:
+
+```json
+{
+  "vars": {
+    "control_hub_query_timeout": "10"
+  }
+}
+```
+
+**Note:**
+
+- A value of `"0"` will cause the default to be used.
+
+**History:**
+
+- Added in 3.15.0
+
 ### Enable client initiated reporting
 
 In the default configuration for Enterprise report collection the hub
@@ -1231,15 +1254,16 @@ enabled and the watchdog will be active. If the class
 `cfe_internal_core_watchdog_disabled` is defined, the feature is disabled and
 the watchdog will not be active.
 
-By default if enabled the watchdog tries to remediate the following conditions:
+```json
+{
+    "classes": {
+        "cfe_internal_core_watchdog_enabled": [ "aix::" ],
+        "cfe_internal_core_watchdog_disabled": [ "!cfe_internal_core_watchdog_enabled::" ]
+        }
+}
+```
 
-- If `cf-execd` is executable and there is no `cf-execd` process running, then
-  `cf-execd` will be launched.
-
-**History:**
-
-- start cf-execd if not running (3.8.0)
-- restart if processes not resulting in updated logs (3.12.0)
+**See Also:** [Watchdog documentation][cfe_internal/core/watchdog]
 
 ### Modules
 

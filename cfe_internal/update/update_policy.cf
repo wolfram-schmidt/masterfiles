@@ -85,22 +85,39 @@ bundle agent cfe_internal_setup_python_symlink(symlink_path)
 {
   vars:
       "path" string => getenv("PATH", 1024);
-      "path_folders" slist => splitstring("$(path)", ":", 128);
+      "path_folders" slist => filter("$(sys.bindir)",
+                                     splitstring("$(path)", ":", 128),
+                                     false, true, 128);
 
-      "exact_version_globs" slist => maplist("$(this)/python[23]", @(path_folders)),
+    windows::
+      "abs_path_folders" -> {"CFE-2309"}
+        slist => filter("([A-Z]|//):.*", path_folders, "true", "false", 128),
+        comment => "findfiles() complains about relative directories";
+
+    !windows::
+      "abs_path_folders" -> {"CFE-2309"}
+        slist => filter("/.*", path_folders, "true", "false", 128),
+        comment => "findfiles() complains about relative directories";
+
+    any::
+      "exact_version_globs" slist => maplist("$(this)/python[23]", @(abs_path_folders)),
         comment => "Looking for Python 2 and/or Python 3 in the $PATH folders";
 
-      "generic_python_globs" slist => maplist("$(this)/python", @(path_folders)),
+      "generic_python_globs" slist => maplist("$(this)/python", @(abs_path_folders)),
         comment => "Looking for the 'python' symlink/executable which can be any
                     version of Python (usually Python 2 for backwards compatibility)";
 
       "python_exact[$(exact_version_globs)]" slist => findfiles("$(exact_version_globs)");
       "python_generic[$(generic_python_globs)]" slist => findfiles("$(generic_python_globs)");
+      "python_platform_fallback[/usr/libexec/platform-python]" -> { "CFE-3291" }
+        slist => { "/usr/libexec/platform-python" };
 
       "python_exact_sorted" slist => reverse(sort(getvalues(@(python_exact)), "lex")),
         comment => "Prefer higher major versions of Python";
 
-      "pythons" slist => getvalues(mergedata(@(python_exact_sorted), getvalues(@(python_generic)))),
+      "pythons" slist => getvalues(mergedata(@(python_exact_sorted),
+                                             getvalues(@(python_generic)),
+                                             getvalues(@(python_platform_fallback)))),
         comment => "Prefer exact versions over unknown";
 
       "python" string => nth(@(pythons), 0),
@@ -125,7 +142,7 @@ bundle agent cfe_internal_update_policy_cpv
 #              cf_promises_validated file as a gating mechanism to prevent
 #              unnecessary burden on the server from remote agents checking to
 #              see if each individual file needs an update.
-# - The class `validated_updates_ready` is defined when `cf_promsies_validated` is repaired
+# - The class `validated_updates_ready` is defined when `cf_promises_validated` is repaired
 # - Executing `cf-agent -KIf update.cf --define validated_updates_ready` will
 #   cause the update policy to scan all files in masterfiles, modules, and
 #   plugins to be scanned for update.
@@ -142,7 +159,7 @@ bundle agent cfe_internal_update_policy_cpv
 
     windows::
 
-      "modules_dir_source"        string => "/var/cfengine/modules",
+      "modules_dir_source"        string => "/var/cfengine/masterfiles/modules",
       comment => "Directory containing CFEngine modules",
       handle => "cfe_internal_update_policy_vars_modules_dir_windows";
 
@@ -152,7 +169,7 @@ bundle agent cfe_internal_update_policy_cpv
 
     !windows::
 
-      "modules_dir_source"        string => translatepath("$(sys.workdir)/modules"),
+      "modules_dir_source"        string => translatepath("$(master_location)/modules"),
       comment => "Directory containing CFEngine modules",
       handle => "cfe_internal_update_policy_vars_modules_dir";
 
@@ -219,7 +236,7 @@ bundle agent cfe_internal_update_policy_cpv
       action => u_immediate,
       classes => u_if_repaired("validated_updates_ready");
 
-    !am_policy_hub::
+    any::
 
       "$(sys.workdir)$(const.dirsep)modules"
       comment => "Always update modules files on client side",
@@ -228,6 +245,8 @@ bundle agent cfe_internal_update_policy_cpv
       depth_search => u_recurse("inf"),
       perms => u_m("755"),
       action => u_immediate;
+
+    !am_policy_hub::
 
       "$(sys.workdir)$(const.dirsep)plugins"
       comment => "Always update plugins files on client side",
@@ -274,10 +293,9 @@ bundle agent cfe_internal_update_policy_cpv
       action => u_immediate;
 
   methods:
-    debian|redhat|amazon_linux|suse|sles::
+    debian|redhat|amazon_linux|suse|sles|opensuse::
       # Only needed on distros with Python-based package modules
-      "setup_python_symlink" usebundle => cfe_internal_setup_python_symlink("$(python_symlink)"),
-        if => not(fileexists("$(python_symlink)"));
+      "setup_python_symlink" usebundle => cfe_internal_setup_python_symlink("$(python_symlink)");
 }
 
 #########################################################
@@ -285,6 +303,8 @@ bundle agent cfe_internal_update_policy_cpv
 #########################################################
 
 body perms u_m(p)
+# @brief Ensure file mode is `p`
+# @param p Desired file mode
 {
       mode  => "$(p)";
 }
@@ -292,6 +312,9 @@ body perms u_m(p)
 #########################################################
 
 body perms u_mo(p,o)
+# @brief Ensure file mode is `p` and owner is `o`
+# @param p Desired file mode
+# @param p Desired file owner (username or uid)
 {
       mode   => "$(p)";
       owners => {"$(o)"};
@@ -300,6 +323,7 @@ body perms u_mo(p,o)
 #########################################################
 
 body perms u_shared_lib_perms
+# @brief Shared library permissions
 {
     !hpux::
       mode => "0644";
@@ -310,6 +334,7 @@ body perms u_shared_lib_perms
 #########################################################
 
 body file_select u_cf3_files
+# @brief Select files starting with `cf-` (cfengine binaries)
 {
       leaf_name => { "cf-.*" };
       file_result => "leaf_name";
@@ -318,6 +343,7 @@ body file_select u_cf3_files
 #########################################################
 
 body file_select u_input_files
+# @brief Select files by extension that we should include when updating inputs
 {
       leaf_name => { @(update_def.input_name_patterns) };
       file_result => "leaf_name";
@@ -326,6 +352,9 @@ body file_select u_input_files
 #########################################################
 
 body copy_from u_rcp(from,server)
+# @brief Ensure file is a copy of `from` on `server` using digest comparison
+# @param from The path to copy from
+# @param server The remote host to copy from
 {
       source      => "$(from)";
       compare     => "digest";
@@ -355,6 +384,7 @@ body copy_from u_rcp(from,server)
 #########################################################
 
 body copy_from u_cp(from)
+# @brief Ensure file is a copy from `from` on the local server based on digest comparison
 {
       source  => "$(from)";
       compare => "digest";
@@ -363,6 +393,7 @@ body copy_from u_cp(from)
 #########################################################
 
 body copy_from u_cp_nobck(from)
+# @brief copy from `from` locally with digest comparison and making no backups
 {
       source      => "$(from)";
       compare     => "digest";
@@ -372,6 +403,7 @@ body copy_from u_cp_nobck(from)
 #########################################################
 
 body action u_immediate
+# @brief Actuate the promise immediately, ignoring locks
 {
       ifelapsed => "0";
 }
@@ -379,6 +411,8 @@ body action u_immediate
 #########################################################
 
 body depth_search u_recurse(d)
+# @brief Search recursively for files up to `d` levels excluding common version control data
+# @param d Maximum depth to search recursively
 {
       depth => "$(d)";
       exclude_dirs => { "\.svn", "\.git", "git-core" };
@@ -387,6 +421,8 @@ body depth_search u_recurse(d)
 #########################################################
 
 body depth_search u_recurse_basedir(d)
+# @brief Search recursively for files up to `d` levels excluding common version control data and including the base directory
+# @param d Maximum depth to search recursively
 {
       include_basedir => "true";
       depth => "$(d)";
@@ -396,6 +432,8 @@ body depth_search u_recurse_basedir(d)
 #########################################################
 
 body classes u_if_repaired(x)
+# @brief Define `x` if the promise is repaired
+# @param x Class to define if promise repaired
 {
       promise_repaired => { "$(x)" };
 }
@@ -403,6 +441,8 @@ body classes u_if_repaired(x)
 #########################################################
 
 body classes u_if_repaired_then_cancel(y)
+# @brief Cancel class `x` if the promise is repaired
+# @param x Class to undefine if promise repaired
 {
       cancel_repaired => { "$(y)" };
 }
@@ -410,6 +450,9 @@ body classes u_if_repaired_then_cancel(y)
 #########################################################
 
 body classes u_if_else(yes,no)
+# @brief define `yes` if the promise is repaired, and `no` if the promise fails to repair (notkept)
+# @param yes Class to define if promise repaired
+# @param no Class to undefine if promise notkept
 {
 #      promise_kept     => { "$(yes)" };
       promise_repaired => { "$(yes)" };
@@ -421,6 +464,7 @@ body classes u_if_else(yes,no)
 #########################################################
 
 body contain u_in_shell
+# @brief Run command within shell environment
 {
       useshell => "true";
 }
@@ -428,6 +472,7 @@ body contain u_in_shell
 #########################################################
 
 body contain u_in_shell_and_silent
+# @brief Run command within shell environment suppressing output
 {
       useshell => "true";
       no_output => "true";
@@ -436,6 +481,7 @@ body contain u_in_shell_and_silent
 ########################################################""
 
 body contain u_postgres
+# @brief Run command within postgres users shell environment
 {
   useshell   => "useshell";
   exec_owner => "cfpostgres";
@@ -447,6 +493,7 @@ body contain u_postgres
 #########################################################
 
 body action u_ifwin_bg
+# @brief Run command in the background if windows is defined
 {
     windows::
       background => "true";
@@ -455,6 +502,7 @@ body action u_ifwin_bg
 #########################################################
 
 body service_method u_bootstart
+# @brief Attributes for u_bootstart service method
 {
       service_autostart_policy => "boot_time";
 }
@@ -462,6 +510,8 @@ body service_method u_bootstart
 #########################################################
 
 body contain u_in_dir(s)
+# @brief Run command from within `s`
+# @param s Path to change into before running command
 {
       chdir => "$(s)";
 }
@@ -469,6 +519,8 @@ body contain u_in_dir(s)
 #########################################################
 
 body contain u_silent_in_dir(s)
+# @brief Run command from within `s` and suppress output
+# @param s Path to change into before running command
 {
       chdir => "$(s)";
       no_output => "true";
@@ -477,6 +529,18 @@ body contain u_silent_in_dir(s)
 #########################################################
 
 body link_from u_ln_s(x)
+# @brief Symlink to `x`, even if it does not exist
+# @param x Path to symlink
+#@ **Example:**
+#@ ```cf3
+#@ bundle agent example u_ln_s {
+#@   files:
+#@     "$(symlink_path)"
+#@       link_from => u_ln_s("$(python)"),
+#@       move_obstructions => "true",
+#@       if => isvariable("python");
+#@ }
+#@ ```
 {
       link_type => "symlink";
       source => "$(x)";
@@ -486,6 +550,16 @@ body link_from u_ln_s(x)
 #########################################################
 
 body delete u_tidy
+# @brief Delete directories and symlinks
+#@ **Example:**
+#@ ```cf3
+#@ bundle agent example u_tidy {
+#@   files:
+#@     "$(symlink_path)"
+#@       delete => u_tidy,
+#@       if => not(isvariable("python"));
+#@ }
+#@ ```
 {
       dirlinks => "delete";
       rmdirs   => "true";

@@ -99,7 +99,7 @@ Header edit Set-Cookie ^(.*)$ $1;HttpOnly;Secure
 
 # Server configuration
 # ServerAdmin root@localhost
-DocumentRoot "{{{vars.cfe_internal_hub_vars.docroot}}}"
+DocumentRoot "{{{vars.cfe_internal_hub_vars.public_docroot}}}"
 
 <Directory />
     Order deny,allow
@@ -125,12 +125,13 @@ LogLevel warn
 <IfModule log_config_module>
     LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
     LogFormat "%h %l %u %t \"%r\" %>s %b" common
+    LogFormat "%h %l %{username}n %t \"%r\" %>s %b" common_with_apache_notes_username
 
     <IfModule logio_module>
       LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" %I %O" combinedio
     </IfModule>
 
-    CustomLog "logs/access_log" common
+    CustomLog "logs/access_log" common_with_apache_notes_username
 </IfModule>
 
 <IfModule mime_module>
@@ -187,10 +188,14 @@ LogLevel warn
   SSLRandomSeed connect builtin
 
   <VirtualHost _default_:443>
-    DocumentRoot "{{{vars.cfe_internal_hub_vars.docroot}}}"
+    DocumentRoot "{{{vars.cfe_internal_hub_vars.public_docroot}}}"
+    Alias "/api" "{{{vars.cfe_internal_hub_vars.docroot}}}/api"
+    Alias "/api/static" "{{{vars.cfe_internal_hub_vars.docroot}}}/api/static"
+    Alias "/ldap" "{{{vars.cfe_internal_hub_vars.docroot}}}/ldap"
     ServerName {{{vars.sys.fqhost}}}:443
     # ServerAdmin root@localhost
     ErrorLog "{{{vars.cfe_internal_hub_vars.error_log}}}"
+    LogFormat "%h %l %{username}n %t \"%r\" %>s %b"
     TransferLog "{{{vars.cfe_internal_hub_vars.access_log}}}"
 
     SSLEngine on
@@ -228,7 +233,7 @@ AddHandler php{{{vars.cfe_internal_hub_vars.php_version}}}-script       .php
 AddType    application/x-httpd-php-source php{{{vars.cfe_internal_hub_vars.php_version}}}
 
 
-<Directory "{{{vars.cfe_internal_hub_vars.docroot}}}">
+<Directory "{{{vars.cfe_internal_hub_vars.public_docroot}}}">
 
     Options -Indexes +FollowSymLinks +MultiViews
     Order deny,allow
@@ -254,6 +259,7 @@ AddType    application/x-httpd-php-source php{{{vars.cfe_internal_hub_vars.php_v
 
 <Directory "{{{vars.cfe_internal_hub_vars.docroot}}}/api">
 
+    Order deny,allow
     AllowOverride None
 
   <IfModule mod_rewrite.c>
@@ -266,6 +272,7 @@ AddType    application/x-httpd-php-source php{{{vars.cfe_internal_hub_vars.php_v
 
 <Directory "{{{vars.cfe_internal_hub_vars.docroot}}}/api/static">
 
+    Order deny,allow
     AllowOverride None
 
   # What do we use mod_mime for?
@@ -278,6 +285,7 @@ AddType    application/x-httpd-php-source php{{{vars.cfe_internal_hub_vars.php_v
 
 <Directory "{{{vars.cfe_internal_hub_vars.docroot}}}/ldap">
 
+    Order deny,allow
     AllowOverride None
 
   <IfModule mod_rewrite.c>

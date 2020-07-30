@@ -15,6 +15,7 @@
 #
 ##################################################################
 bundle common cfe_internal_management_file_control
+# @brief Define policy input dependancies
 {
   vars:
 
@@ -29,12 +30,14 @@ bundle common cfe_internal_management_file_control
 }
 
 body file control
+# @brief Include policy input dependancies
 {
     cfengine_recommendations_enabled::
       inputs => { @(cfe_internal_management_file_control.inputs) };
 }
 
 bundle agent cfe_internal_management
+# @brief Actuate the appropriate set(s) of internal management policies
 {
   vars:
     any::
@@ -69,7 +72,7 @@ bundle agent cfe_internal_management
 
       "CFEngine Recommendations"
         usebundle => $(recommendation_bundles),
-        if => isvariable( recommendation_bunldes );
+        if => isvariable( recommendation_bundles );
 
   reports:
     DEBUG|DEBUG_cfe_internal_management::

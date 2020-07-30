@@ -7,7 +7,7 @@
 ###############################################################################
 
 body server control
-
+# @brief Control attributes for cf-serverd
 {
       # List of ciphers the server accepts. For Syntax help see man page
       # for "openssl ciphers". Default is "AES256-GCM-SHA384:AES256-SHA"
@@ -72,12 +72,18 @@ body server control
                            $(sys.cf_agent) -I -D cf_runagent_initiated -f $(sys.update_policy_path)  ;
                            $(sys.cf_agent) -I -D cf_runagent_initiated";
 
+    !windows.!(redhat_5|centos_5)::
+      # Bind to all interfaces including ipv6
+      # Adding this on windows will force ipv6 only, so limit to non-windows
+      # On RHEL/CentOS 5 binding to interface "::" fails.
+      bindtointerface => "::";
+
 }
 
 ###############################################################################
 
 bundle server access_rules()
-
+# @brief Defines access to common resources
 {
   access:
 
@@ -94,6 +100,13 @@ bundle server access_rules()
       handle => "server_access_grant_access_binary",
       comment => "Grant access to binary for cf-runagent",
       if => isdir( "$(def.dir_bin)/" ),
+      admit => { @(def.acl) };
+
+      "$(def.dir_data)/"
+      handle => "server_access_grant_access_data",
+      shortcut => "data",
+      comment => "Grant access to data directory",
+      if => isdir( "$(def.dir_data)/" ),
       admit => { @(def.acl) };
 
       "$(def.dir_modules)/"

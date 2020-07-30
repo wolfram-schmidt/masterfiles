@@ -1,15 +1,7 @@
-bundle common federation_file_control
-{
-  vars:
-    "inputs" slist => { "$(sys.local_libdir)/stdlib.cf", "$(this.promise_dirname)/../CFE_hub_specific.cf" };
-}
-
 body file control
 {
-        inputs => { @(federation_file_control.inputs) };
         namespace => "cfengine_enterprise_federation";
 }
-
 bundle agent config
 # @brief Read/parse config JSON, define variables and classes for use later
 {
@@ -44,6 +36,13 @@ bundle agent config
         scope => "namespace";
       "am_on" expression => strcmp("on", "$(data[target_state])"),
         scope => "namespace";
+
+      # _stdlib_path_exists_getenforce and paths.getenforce are defined by masterfiles/lib/paths.cf
+      default:_stdlib_path_exists_getenforce::
+        "selinux_enabled"
+          expression => strcmp("Enforcing", execresult("$(paths.getenforce)", useshell)),
+          scope => "namespace";
+
 
   vars:
     enabled::
@@ -205,11 +204,6 @@ bundle agent transport_user
         };
 
   classes:
-    # _stdlib_path_exists_getenforce and paths.getenforce are defined by masterfiles/lib/paths.cf
-    enabled.default:_stdlib_path_exists_getenforce::
-        "selinux_enabled"
-          expression => strcmp("Enforcing", execresult("$(paths.getenforce)", useshell));
-
     enabled.selinux_enabled::
         "incorrect_ssh_context"
           expression => not( or(
@@ -263,7 +257,7 @@ bundle agent transport_user
 
   commands:
     # _stdlib_path_exists_<command> and paths.<command> are defined is masterfiles/lib/paths.cf
-    selinux_enabled.incorrect_ssh_context.default:_stdlib_path_exists_semanage.default:_stdlib_path_exists_restorecon.selinux_makefile_present::
+    selinux_enabled.incorrect_ssh_context.default:_stdlib_path_exists_semanage.default:_stdlib_path_exists_restorecon::
       "$(paths.semanage) fcontext -a -t ssh_home_t '$(home)/.ssh(/.*)?'";
       "$(paths.restorecon) -R -F $(home)/.ssh/";
 
@@ -277,9 +271,9 @@ bundle agent transport_user
 
   reports:
     selinux_enabled.incorrect_ssh_context.!default:_stdlib_path_exists_semanage::
-      "need to fix incorrect ssh context for transport user but semanage path in $(sys.libdir)/paths.cf ($paths.semanage) does not resolve";
+      "need to fix incorrect ssh context for transport user but semanage path in $(sys.libdir)/paths.cf $(paths.semanage) does not resolve";
     selinux_enabled.incorrect_ssh_context.!default:_stdlib_path_exists_restorecon)::
-      "need to fix incorrect ssh context for transport user but restorecon path in $(sys.libdir)/paths.cf ($paths.restorecon) does not resolve";
+      "need to fix incorrect ssh context for transport user but restorecon path in $(sys.libdir)/paths.cf $(paths.restorecon) does not resolve";
 }
 
 bundle agent clean_when_off
@@ -300,18 +294,15 @@ bundle agent clean_when_off
   methods:
     "rm_rf_cftransport_home_dir" usebundle => default:rm_rf("$(home)");
 
+  classes:
+    selinux_enabled.default:_stdlib_path_exists_semanage::
+      "has_cftransport_fcontext" expression => returnszero("$(paths.semanage) fcontext -l | grep $(home)", "useshell");
+
   commands:
     # _stdlib_path_exists_<command> and paths.<command> are defined is masterfiles/lib/paths.cf
-    selinux_enabled.default:_stdlib_path_exists_semanage.default:_stdlib_path_exists_restorecon::
-      "$(paths.semanage) -d -t ssh_home_t '$(home)/.ssh(/.*)?'";
+    selinux_enabled.default:_stdlib_path_exists_semanage.has_cftransport_fcontext::
+      "$(paths.semanage) fcontext -d '$(home)/.ssh(/.*)?'";
 
-}
-
-bundle agent inventory_refresh_cmd
-{
-  vars:
-    "cmd" data => parsejson('{"inventory_refresh_cmd":
-                                "$(sys.workdir)/httpd/php/bin/php $(cfe_internal_hub_vars.docroot)/index.php cli_tasks inventory_refresh"}');
 }
 
 bundle agent federation_manage_files
@@ -325,12 +316,6 @@ bundle agent federation_manage_files
     "feeder_username" data => parsejson('{"feeder_username":"$(cfengine_enterprise_federation:config.transport_user)"}');
     "feeder" data => parsejson('{"feeder": "$(sys.key_digest)"}');
     "cf_version" data => parsejson('{"cf_version":"$(sys.cf_version)"}');
-
-  methods:
-      "internal_vars" usebundle => "default:cfe_internal_hub_vars",
-        comment => "We need the path to the inventory refresh PHP script before we use it.";
-      "inventory_refresh_cmd" usebundle => "cfengine_enterprise_federation:inventory_refresh_cmd",
-        comment => "Needs to be in a separate bundle so that it gets evaluated *after* cfe_internal_hub_vars.";
 
   files:
     enterprise_edition.(policy_server|am_policy_hub)::
@@ -380,7 +365,7 @@ bundle agent federation_manage_files
         template_method => "mustache",
         edit_template => "$(this.promise_dirname)/../../../templates/federated_reporting/config.sh.mustache",
         template_data => mergedata(@(login), @(feeder_username), @(feeder), @(cf_version),
-                                   @(cfengine_enterprise_federation:inventory_refresh_cmd.cmd)),
+                                   parsejson('{"inventory_refresh_cmd": ""}')),
         perms => default:mog( "640", "root", "$(transport_user)" );
 
       # TODO: Instrument augments
@@ -403,8 +388,7 @@ bundle agent federation_manage_files
     am_feeder::
       "$(cfengine_enterprise_federation:config.bin_dir)/dump.sh"
         copy_from => default:local_dcp( "$(this.promise_dirname)/../../../templates/federated_reporting/dump.sh" ),
-        perms => default:mog( "700", "root", "root" ),
-        action => default:if_elapsed($(cfengine_enterprise_federation:config.dump_interval));
+        perms => default:mog( "700", "root", "root" );
 
       "$(cfengine_enterprise_federation:config.federation_dir)/fedhub/dump/filters/50-merge_inserts.awk"
         copy_from => default:local_dcp( "$(this.promise_dirname)/../../../templates/federated_reporting/50-merge_inserts.awk" ),
@@ -459,19 +443,18 @@ bundle agent postgres_config
         classes => default:results( "bundle", "postgresql_conf" );
 
   commands:
-    am_superhub.postgresql_conf_repaired::
-      "$(sys.bindir)/pg_ctl"
-        arglist => {
-                     "restart",
-                     "-w", # Wait for startup or shutdown to complete, -W (do not wait) is the default for start and restart modes
-                     "-D",
-                     "$(sys.statedir)/pg/data",
-                     "-l",
-                     "/var/log/postgresql.log",
-                     "-m",
-                     "smart" # wait for online backup mode to finish and all clients to disconnect
-        },
+    am_superhub.postgresql_conf_repaired.!systemd::
+      # smart mode tries to wait for operations to finish and clients to
+      # disconnect, fast mode terminates open connections gracefully
+      "$(sys.bindir)/pg_ctl --pgdata $(sys.statedir)/pg/data --log /var/log/postgresql.log --wait --mode smart restart ||
+       $(sys.bindir)/pg_ctl --pgdata $(sys.statedir)/pg/data --log /var/log/postgresql.log --wait --mode fast  restart"
         contain => cfpostgres_user;
+
+  services:
+    am_superhub.postgresql_conf_repaired.systemd::
+      "cf-postgres"
+        service_method => default:standard_services,
+        service_policy => "restart";
 }
 
 body contain cfpostgres_user
@@ -539,14 +522,54 @@ body contain contain_transport_user
     useshell => "true";
 }
 
+bundle agent pre_import_state
+# @brief Get the superhub into a state ready for importing dumps from feeders
+{
+  meta:
+      "comment" string => "We need to stop cf-hub to prevent deadlocks on the PostgreSQL database";
+
+  services:
+    systemd::
+      "cf-hub"
+        service_policy => "stop",
+        service_method => default:standard_services;
+
+  processes:
+    !systemd::
+      "cf-hub"
+        process_select => daemon_select,  # we want the main process (not its child processes)
+        signals => {"term"};
+}
+
+body process_select daemon_select
+# @brief Select a daemon process (with PPID equal to 1)
+{
+        ppid => irange(1, 1);
+        process_result => "ppid";
+}
+
 bundle agent imported_data
 # @brief Run script to import dumps on superhub
 {
   commands:
-    am_superhub.!am_paused::
       "/bin/bash"
         arglist => {"$(cfengine_enterprise_federation:config.bin_dir)/import.sh"},
         contain => default:in_shell;
+}
+
+bundle agent post_import_state
+# @brief Get the superhub into the standard state, after importing dumps from feeders
+# @see pre_import_state
+{
+  services:
+    systemd::
+      "cf-hub"
+        service_policy => "start",
+        service_method => default:standard_services;
+
+  commands:
+    !systemd::
+      "/var/cfengine/bin/cf-hub";
 }
 
 bundle agent superhub_schema
@@ -636,14 +659,26 @@ bundle agent entry
         handle => "data_transport",
         depends_on => { "transport_user" },
         usebundle => data_transport;
-      "CFEngine Enterprise Federation Feeder Data Import"
-        handle => "imported_data",
-        depends_on => { "transport_user", "ensure_feeders" },
-        usebundle => imported_data;
       "CFEngine Enterprise Federation Feeder Data Export"
-        usebundle => exported_data;
+        usebundle => exported_data,
+        action => default:if_elapsed($(cfengine_enterprise_federation:config.dump_interval));
       "Configuration Status"
         usebundle => setup_status;
+
+    enabled.am_on.am_superhub.!am_paused::
+      "CFEngine Enterprise Federation Feeder Data Import Preparations"
+        handle => "pre_import_state",
+        depends_on => { "transport_user", "ensure_feeders" },
+        usebundle => pre_import_state;
+      "CFEngine Enterprise Federation Feeder Data Import"
+        handle => "imported_data",
+        depends_on => { "pre_import_state" },
+        usebundle => imported_data;
+      "CFEngine Enterprise Federation Feeder Data Import Cleanups"
+        handle => "post_import_state",
+        depends_on => { "imported_data" },
+        usebundle => post_import_state;
+
   reports:
     !enterprise_edition::
       "Federated reporting is only available in CFEngine Enterprise.";

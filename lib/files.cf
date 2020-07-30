@@ -1,61 +1,14 @@
-############################################################################
-#  Copyright 2017 Northern.tech AS
-#
-#  This program is free software; you can redistribute it and/or modify it
-#  under the terms of the GNU Lesser General Public License LGPL as published by the
-#  Free Software Foundation; version 3.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  To the extent this program is licensed as part of the Enterprise
-#  versions of CFEngine, the applicable Commercial Open Source License
-#  (COSL) may apply to this file if you as a licensee so wish it. See
-#  included file COSL.txt.
-###########################################################################
-#
-# CFEngine Community Open Promise-Body Library
-#
-# This initiative started by CFEngine promotes a
-# standardized set of names and promise specifications
-# for template functionality within CFEngine 3.
-#
-# The aim is to promote an industry standard for
-# naming of configuration patterns, leading to a
-# de facto middleware of standardized syntax.
-#
-# Names should be intuitive and parameters should be
-# minimal to assist readability and comprehensibility.
-
-# Contributions to this file are voluntarily given to
-# the cfengine community, and are moderated by CFEngine.
-# No liability or warranty for misuse is implied.
-#
-# If you add to this file, please try to make the
-# contributions "self-documenting". Comments made
-# after the bundle/body statement are retained in
-# the online docs
-#
-
-# For CFEngine Core: 3.7.0 to 3.7.x
 # Files bodies
 
-###################################################
-# If you find CFEngine useful, please consider    #
-# purchasing a commercial version of the software.#
-###################################################
-
 bundle common files_common
-# @ignore
+# @brief Enumerate policy files used by this policy file for inclusion to inputs
 {
   vars:
       "inputs" slist => { "$(this.promise_dirname)/common.cf" };
 }
 
 body file control
-# @ignore
+# @brief Include policy files used by this policy file as part of inputs
 {
       inputs => { @(files_common.inputs) };
 }
@@ -95,7 +48,7 @@ bundle edit_line insert_file(templatefile)
 
 bundle edit_line lines_present(lines)
 # @brief Ensure `lines` are present in the file. Lines that do not exist are appended to the file
-# @param List or string that should be present in the file
+# @param lines List or string that should be present in the file
 #
 # **Example:**
 #
@@ -119,6 +72,7 @@ bundle edit_line lines_present(lines)
 
 bundle edit_line insert_lines(lines)
 # @brief Alias for `lines_present`
+# @param lines List or string that should be present in the file
 {
   insert_lines:
 
@@ -128,6 +82,7 @@ bundle edit_line insert_lines(lines)
 
 bundle edit_line append_if_no_line(lines)
 # @brief Alias for `lines_present`
+# @param lines List or string that should be present in the file
 {
   insert_lines:
 
@@ -137,6 +92,7 @@ bundle edit_line append_if_no_line(lines)
 
 bundle edit_line append_if_no_lines(lines)
 # @brief Alias for `lines_present`
+# @param lines List or string that should be present in the file
 {
   insert_lines:
 
@@ -409,28 +365,6 @@ bundle edit_line manage_variable_values_ini(tab, sectionName)
   vars:
       "index" slist => getindices("$(tab)[$(sectionName)]");
 
-      # Be careful if the index string contains funny chars
-      "cindex[$(index)]" string => canonify("$(index)");
-
-  classes:
-      "edit_$(cindex[$(index)])"     not => strcmp("$($(tab)[$(sectionName)][$(index)])","dontchange"),
-      comment => "Create conditions to make changes";
-
-  field_edits:
-
-      # If the line is there, but commented out, first uncomment it
-      "#+\s*$(index)\s*=.*"
-      select_region => INI_section(escape("$(sectionName)")),
-      edit_field => col("=","1","$(index)","set"),
-      ifvarclass => "edit_$(cindex[$(index)])";
-
-      # match a line starting like the key something
-      "$(index)\s*=.*"
-      edit_field => col("=","2","$($(tab)[$(sectionName)][$(index)])","set"),
-      select_region => INI_section(escape("$(sectionName)")),
-      classes => results("bundle", "manage_variable_values_ini_not_$(cindex[$(index)])"),
-      ifvarclass => "edit_$(cindex[$(index)])";
-
   delete_lines:
       ".*"
       select_region => INI_section(escape("$(sectionName)")),
@@ -442,9 +376,7 @@ bundle edit_line manage_variable_values_ini(tab, sectionName)
       comment => "Insert lines";
 
       "$(index)=$($(tab)[$(sectionName)][$(index)])"
-      select_region => INI_section(escape("$(sectionName)")),
-        ifvarclass => "!(manage_variable_values_ini_not_$(cindex[$(index)])_kept|manage_variable_values_ini_not_$(cindex[$(index)])_repaired).edit_$(cindex[$(index)])";
-
+      select_region => INI_section(escape("$(sectionName)"));
 }
 
 ##
@@ -478,12 +410,12 @@ bundle edit_line set_variable_values_ini(tab, sectionName)
       # If the line is there, but commented out, first uncomment it
       "#+\s*$(index)\s*=.*"
       select_region => INI_section(escape("$(sectionName)")),
-      edit_field => col("=","1","$(index)","set"),
+      edit_field => col("\s*=\s*","1","$(index)","set"),
       ifvarclass => "edit_$(cindex[$(index)])";
 
       # match a line starting like the key something
-      "$(index)\s*=.*"
-      edit_field => col("=","2","$($(tab)[$(sectionName)][$(index)])","set"),
+      "\s*$(index)\s*=.*"
+      edit_field => col("\s*=\s*","2","$($(tab)[$(sectionName)][$(index)])","set"),
       select_region => INI_section(escape("$(sectionName)")),
       classes => results("bundle", "set_variable_values_ini_not_$(cindex[$(index)])"),
       ifvarclass => "edit_$(cindex[$(index)])";
@@ -505,7 +437,7 @@ bundle edit_line insert_ini_section(name, config)
 # ```
 # # given an array "barray"
 # files:
-#     "myfile.ini" edit_line => insert_innit_section("foo", "barray");
+#     "myfile.ini" edit_line => insert_ini_section("foo", "barray");
 # ```
 #
 # Inserts a section in an INI file with the given configuration
@@ -516,8 +448,8 @@ bundle edit_line insert_ini_section(name, config)
 {
   vars:
       # TODO: refactor once 3.7.x is EOL
-      "indeces" slist => getindices($(config));
-      "k" slist => sort("indeces", lex);
+      "indices" slist => getindices($(config));
+      "k" slist => sort("indices", lex);
 
   insert_lines:
       "[$(name)]"
@@ -895,7 +827,6 @@ bundle edit_line set_config_values_matching(v,pat)
 ##
 
 bundle edit_line maintain_key_values(v,sep)
-# @ignore
 # @brief Sets the RHS of configuration items with an giving separator
 #
 # Contributed by David Lee

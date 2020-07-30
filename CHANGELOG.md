@@ -1,6 +1,109 @@
 # Changelog
 Notable changes to the framework should be documented here
 
+3.16.0:
+	- /var/cfengine/bin/python symlink creation on SLES was fixed
+	- Added 'data' shortcut to cf-serverd, defaults to sys.workdir/data
+	- Added inventory for CFEngine Enterprise License information
+	  (ENT-5089, ENT-5279)
+	- Added inventory of NFS servers in use (from /proc/mounts, on linux)
+	  (CFE-3259)
+	- Added inventory of license owner on enterprise hubs (ENT-5337)
+	- Added paths support for opensuse (CFE-3283)
+	- Added use of services promise for FR postgresql reconfig in case of
+	  systemd (ENT-5420)
+	- Added zypper as default package manager for opensuse (CFE-3284)
+	- Admitted ::1 as a query source on Enterprise hubs (ENT-5531)
+	- Aligned unattended self upgrade package map with current state
+	  (ENT-6010)
+	- Always copy modules from masterfiles (CFE-3237)
+	- Changed DocumentRoot of Mission Portal in httpd.conf to
+	  `/path/to/cfengine/httpd/htdocs/public` (ENT-5372)
+	- Changed group for state dir files promise to match defaults per OS
+	  (CFE-3362)
+	- Changed m_inventory dumping behavior to exclude when values is null
+	  (ENT-5562)
+	- Corrected application/logs path to outside of docroot (ENT-5255)
+	- Deleted deprecated __PromiseExecutionsLog from process that cleans
+	  log tables (ENT-5170)
+	- Fixed dmi inventory to prefer sysfs to dmidecode for most variables
+	  for improved performance and to handle CoreOS hosts that don't
+	  have dmidecode.  (CFE-3249)
+	- Fixed permission flipping when policy analyzer is enabled (ENT-5235)
+	- Fixed runalerts processes promise on non-systemd systems (ENT-5432)
+	- Fixed selection of standard_services when used from non-default
+	  namespace (ENT-5406)
+	- Fixed system UUID inventory for certain VMWare VMs where dmidecode
+	  gives UUID bytes in wrong order.  (CFE-3249)
+	- Fixed typo preventing recommendation bundles from running (CFE-3305)
+	- HA setups no longer have flipping permissions on
+	  /opt/cfengine/notification_scripts
+	- Improved resilience of cron watchdog for linux (CFE-3258)
+	- Inventory refresh is no longer part of agent run on the hub
+	  (ENT-4864)
+	- Made python symlink fall back to platform-python (CFE-3291)
+	- Made set_variable_values_ini prefer whitespace around = (CFE-3221)
+	- Modified cftransport cleanup to avoid errors (ENT-5555)
+	- Moved 'selinux_enabled' class to config bundle and namespace scope it
+	- Prevented inventory of unresolved variables for diskfree and loadavg
+	  (ENT-5190)
+	- Release number was added to MPF tarballs (ENT-5429)
+	- Standard services now considers systemd services in
+	  ActiveState=activating active (CFE-3238)
+	- Stopped continual repair of ha_enabled semaphore (ENT-4715)
+	- Stopped disabling disabled systemd unit each run when disabled state
+	  requested (CFE-3367)
+	- Stopped trying to edit fields in manage_variable_values_ini
+	  (CFE-3372)
+	- Suppressed useless inform output from /bin/true in ec2 inventory
+	  (ENT-5233)
+	- Switched from hardcoded path to /bin/true to use paths from stdlib
+	  (ENT-5278)
+	- The zypper module is now fully compatible with Python 3 (CFE-3364)
+	- Whitespace is now allowed at the beginning of ini key-values
+	  (CFE-3244)
+	- apt_get package module now checks package state (CFE-3233)
+
+3.15.0:
+	- Added package_module for snap (CFE-2811)
+	- Fixed pkgsrc in case where multiple Prefix paths are returned for pkg_install (CFE-3152)
+	- Fixed pkgsrc module on Solaris/NetBSD (CFE-3151)
+	- Moved zypper package module errors to the cf-agent output (CFE-3154)
+	- Added new class mpf_enable_cfengine_systemd_component_management to enable
+		component management on systemd hosts. When defined on systemd hosts policy
+		will render systemd unit files in /etc/systemd/system for managed services
+		and that all units are enabled unless explicitly disabled. When this class
+		is not defined on systemd hosts the policy will not actively mange cfengine
+		service units (no change from previous behavior) (CFE-2429)
+	- Fixed detection of service state on FreeBSD (CFE-3167)
+	- Added known paths for true and false on linux
+		(ENT-5060)
+	- Fixed path for restorecon on redhat systems to /sbin/restorecon
+	- Added usermod to known paths for redhat systems
+	- Added policy to manage federated reporting with CFEngine Enterprise
+	- Introduced augments variable `control_hub_query_timeout` to control cf-hub query timeout.
+		 (ENT-3153)
+	- Added OOTB inventory for IPv6 addresses (sans ::1 loopback)
+		(ENT-4987)
+	- Added and transitioned to using master_software_updates shortcut in self upgrade policy
+		(ENT-4953)
+	- Added brief descriptions to bodies and bundles in cfe_internal/CFE_cfengine.cf
+		(CFE-3220)
+	- Added support for SUSE 11, 12 in standalone self upgrade (ENT-5045, ENT-5152)
+	- Changed policy triggering cleanup of __lastseenhostlogs to target only
+		3.12.x, 3.13.x and 3.14.x. From 3.15.0 on the table is absent. (ENT-5052)
+	- Fixed agent disabling on systemd systems (CFE-2429, CFE-3416)
+	- Ensured directory for custom action scripts is present (ENT-5070)
+	- Excluded Enterprise federation policy parsing on incompatible versions
+		(CFE-3193)
+	- Extended watchdog for AIX (ENT-4995)
+	- Fixed cleanup of future timestamps from status table
+		(ENT-4331, ENT-4992)
+	- Fixed re-spawning of cf-execd or cf-monitord after remediating duplicate concurrent processes
+		(CFE-3150)
+	- Replaced /var/cfengine with proper $(sys.*) vars (ENT-4800)
+    - Fixed selection of standard_services when used from non-default namespace (ENT-5406)
+
 3.15.0b1:
 	- Added continual checking for policy_server state (CFE-3073)
 	- Added monitoring for postgresql lock acquisition times (ENT-4753)
