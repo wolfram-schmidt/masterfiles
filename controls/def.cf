@@ -12,7 +12,7 @@ bundle common def
     any::
       "augments_inputs"
         slist => {},
-        ifvarclass => not( isvariable( "augments_inputs" ) ),
+        if => not( isvariable( "augments_inputs" ) ),
         comment => "It's important that we define this list, even if it's empty
                     or we get errors about the list being unresolved.";
 
@@ -22,20 +22,20 @@ bundle common def
         string => "$(sys.domain)",
         comment => "Define a global domain for all hosts",
         handle => "common_def_vars_domain",
-        ifvarclass => not(isvariable("domain"));
+        if => not(isvariable("domain"));
 
       # Mail settings used by body executor control found in controls/cf_execd.cf
       "mailto"
         string => "root@$(def.domain)",
-        ifvarclass => not(isvariable("mailto"));
+        if => not(isvariable("mailto"));
 
       "mailfrom"
         string => "root@$(sys.uqhost).$(def.domain)",
-        ifvarclass => not(isvariable("mailfrom"));
+        if => not(isvariable("mailfrom"));
 
       "smtpserver"
         string => "localhost",
-        ifvarclass => not(isvariable("smtpserver"));
+        if => not(isvariable("smtpserver"));
 
       # List here the IP masks that we grant access to on the server
 
@@ -60,7 +60,7 @@ bundle common def
         },
         comment => "Define an acl for the machines to be granted accesses",
         handle => "common_def_vars_acl",
-        ifvarclass => and(not(isvariable("override_data_acl")), not(isvariable("acl"))),
+        if => and(not(isvariable("override_data_acl")), not(isvariable("acl"))),
         meta => { "defvar" };
 
       # Out of the hosts in allowconnects, trust new keys only from the
@@ -72,7 +72,7 @@ bundle common def
 		   "134.100.0.0/16", # bootstrapping only allowed from UNIHH 
         },
         comment => "Define from which machines keys can be trusted",
-        ifvarclass => and(not(isvariable("override_data_trustkeysfrom")),
+        if => and(not(isvariable("override_data_trustkeysfrom")),
                           not(isvariable("trustkeysfrom"))),
         meta => { "defvar" };
 
@@ -80,17 +80,49 @@ bundle common def
       ## (absence of this option or empty list means allow none)
       "control_server_allowlegacyconnects"
         slist => {},
-        ifvarclass => not( isvariable( "control_server_allowlegacyconnects" ) );
+        if => not( isvariable( "control_server_allowlegacyconnects" ) );
 
 
       # Users authorized to request executions via cf-runagent
       "control_server_allowusers_non_policy_server"
         slist => { "root" },
-        ifvarclass => not( isvariable( "control_server_allowusers_non_policy_server" ) );
+        if => not( isvariable( "control_server_allowusers_non_policy_server" ) );
 
       "control_server_allowusers_policy_server"
         slist => {},
-        ifvarclass => not( isvariable( "control_server_allowusers_non_policy_server" ) );
+        if => not( isvariable( "control_server_allowusers_policy_server" ) );
+
+    policy_server::
+      "control_server_allowusers" -> { "CFE-3544", "ENT-6666" }
+        handle => "def_control_server_allowusers_policy_server",
+        slist => { @(control_server_allowusers_policy_server) },
+        meta => { "inventory", "attribute_name=Allowed users for cf-runagent" },
+        if => not(isvariable("control_server_allowusers"));
+
+    !policy_server::
+      "control_server_allowusers" -> { "CFE-3544", "ENT-6666" }
+        handle => "def_control_server_allowusers_non_policy_server",
+        slist => { @(control_server_allowusers_non_policy_server) },
+        meta => { "inventory", "attribute_name=Allowed users for cf-runagent" },
+        if => not(isvariable("control_server_allowusers"));
+
+    # Executor controls
+    any::
+      "mpf_admit_cf_runagent_shell_selected" -> { "ENT-6673", "ENT-6666" }
+        handle => "mpf_admit_cf_runagent_shell_default",
+        if => not( isvariable( "mpf_admit_cf_runagent_shell" )),
+        slist => { @(def.policy_servers) },
+        meta => { "inventory", "attribute_name=Allowed hosts for cf-runagent", "derived-from=def.policy_servers" },
+        comment => concat( "By default we admit our policy servers to initiate",
+                           "agent runs via cf-runagent");
+
+      "mpf_admit_cf_runagent_shell_selected" -> { "ENT-6673", "ENT-6666" }
+        handle => "mpf_admit_cf_runagent_shell_augments",
+        if => isvariable( "mpf_admit_cf_runagent_shell" ),
+        slist => { @(def.mpf_admit_cf_runagent_shell) },
+        meta => { "inventory", "attribute_name=Allowed hosts for cf-runagent", "derived-from=def.mpf_admit_cf_runagent_shell" },
+        comment => concat( "Users can override the default set of hosts that ",
+                           "can initiate agent runs via cf-runagent.");
 
       # Executor Controls
 
@@ -150,7 +182,7 @@ bundle common def
 
       "control_agent_maxconnections"
         int => "30",
-        ifvarclass => not( isvariable( "control_agent_maxconnections" ) );
+        if => not( isvariable( "control_agent_maxconnections" ) );
 
       # Because in some versions of cfengine bundlesequence in body common
       # control does not support does not support iteration over data containers
@@ -159,6 +191,9 @@ bundle common def
 
       "tbse" data => mergedata( "def.control_common_bundlesequence_end" );
       "bundlesequence_end" slist => getvalues( tbse );
+
+      "tbse" data => mergedata( "def.control_common_bundlesequence_classification" );
+      "bundlesequence_classification" slist => getvalues( tbse );
 
       "control_common_ignore_missing_bundles" -> { "CFE-2773" }
         string => ifelse( strcmp( $(control_common_ignore_missing_bundles), "true" ),
@@ -174,23 +209,14 @@ bundle common def
 
       "control_agent_files_single_copy"
         slist => { },
-        ifvarclass => not( some( ".*", "control_agent_files_single_copy") ),
+        if => not( some( ".*", "control_agent_files_single_copy") ),
         comment => "Default files_single_copy to an empty list if it is not
                     defined. It is expected that users can override the default
                     by setting this value from the augments file (def.json).";
 
       "control_server_maxconnections"
         int => "200",
-        ifvarclass => not( isvariable( "control_server_maxconnections" ) );
-
-      # Package inventory refresh
-      "package_module_query_installed_ifelapsed" -> { "CFE-2771" }
-        string => "60", # 1 hour
-        if => not( isvariable( $(this.promiser) ));
-
-      "package_module_query_updates_ifelapsed" -> { "CFE-2771" }
-        string => "1440", # 1 day
-        if => not( isvariable( $(this.promiser) ));
+        if => not( isvariable( "control_server_maxconnections" ) );
 
     debian::
       "environment_vars"
@@ -353,6 +379,10 @@ bundle common def
         if => not( isvariable( purge_scheduled_reports_older_than_days ) ),
         comment => "This controls the maximum age of artifacts generated by the
                     asynchronous query API and scheduled reports.";
+
+      "mpf_extra_autorun_inputs" -> { "CFE-3524" }
+        slist => {},
+        unless => isvariable( $(this.promiser) );
 
   # Enterprise HA Related configuration
   # enable_cfengine_enterprise_hub_ha is defined below

@@ -50,13 +50,11 @@ body server control
       # to complete report transfer.
         collect_window => "$(def.control_server_collect_window)";
 
-    # The MPF provides different variables for configuring which users are
-    # allowed to initiate execution via cf-runagent.
-    !policy_server::
-      allowusers => { @(def.control_server_allowusers_non_policy_server) };
+    any::
+      # The remote user accounts which are allowed to initiate cf-agent via
+      # cf-runagent.
 
-    policy_server::
-        allowusers => { @(def.control_server_allowusers_policy_server) };
+      allowusers => { @(def.control_server_allowusers) };
 
     windows::
       cfruncommand => "$(sys.cf_agent) -I -D cf_runagent_initiated -f \"$(sys.update_policy_path)\"  &
@@ -82,7 +80,7 @@ body server control
 
 ###############################################################################
 
-bundle server access_rules()
+bundle server mpf_default_access_rules()
 # @brief Defines access to common resources
 {
   access:
@@ -144,10 +142,10 @@ bundle server access_rules()
           admit_ips => { @(def.mpf_access_rules_collect_calls_admit_ips) };
 
     !windows::
-      "$(def.cf_runagent_shell)"
+      "$(def.cf_runagent_shell)" -> { "ENT-6673" }
       handle => "server_access_grant_access_shell_cmd",
       comment => "Grant access to shell for cfruncommand",
-      admit => { @(def.policy_servers) };
+      admit => { @(def.mpf_admit_cf_runagent_shell_selected) };
 
     policy_server.enable_cfengine_enterprise_hub_ha::
       "$(sys.workdir)/ppkeys/"

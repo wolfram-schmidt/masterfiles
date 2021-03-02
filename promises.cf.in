@@ -5,7 +5,7 @@
 # MIT Public License
 # http://www.opensource.org/licenses/MIT
 
-# Copyright 2020 Northern.tech AS
+# Copyright 2021 Northern.tech AS
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of
 # this software and associated documentation files (the "Software"), to deal in
@@ -47,6 +47,9 @@ body common control
                           def,
                           @(cfengine_enterprise_hub_ha.classification_bundles),
 
+                          # Custom classification
+                          @(def.bundlesequence_classification),
+
                           # autorun system
                           services_autorun,
                           @(services_autorun.bundles),
@@ -63,6 +66,9 @@ body common control
       };
 
       inputs => {
+                  # User policy init, for example for defining custom promise types:
+                  "services/init.cf",
+
                  # File definition for global variables and classes
                   @(cfengine_controls.def_inputs),
 
@@ -113,6 +119,12 @@ body common control
           package_inventory => { $(package_module_knowledge.platform_default) };
           package_module => $(package_module_knowledge.platform_default);
 @endif
+    termux::
+          package_module => $(package_module_knowledge.platform_default);
+
+    alpinelinux::
+          package_module => $(package_module_knowledge.platform_default);
+
 
     any::
         ignore_missing_bundles => "$(def.control_common_ignore_missing_bundles)";
@@ -328,11 +340,30 @@ bundle common cfengine_controls
 
 bundle common services_autorun
 # @brief Include autorun policy and discover autorun bundles if enabled
+#
+# Files inside directories listed in `def.mpf_extra_autorun_inputs` will be
+# added to inputs automatically.
 {
   vars:
     services_autorun::
       "inputs" slist => { "$(sys.local_libdir)/autorun.cf" };
-      "found_inputs" slist => lsdir("$(this.promise_dirname)/services/autorun", ".*\.cf", "true");
+
+      "_default_autorun_input_dir"
+        string => "$(this.promise_dirname)/services/autorun";
+      "_default_autorun_inputs"
+        slist => lsdir( "$(_default_autorun_input_dir)", ".*\.cf", "true");
+
+      "_extra_autorun_input_dirs"
+        slist => { @(def.mpf_extra_autorun_inputs) },
+        if => isvariable( "def.mpf_extra_autorun_inputs" );
+
+      "_extra_autorun_inputs[$(_extra_autorun_input_dirs)]"
+        slist => lsdir("$(_extra_autorun_input_dirs)/.", ".*\.cf", "true"),
+        if => isdir( $(_extra_autorun_input_dirs) );
+
+      "found_inputs" slist => { @(_default_autorun_inputs),
+                                sort( getvalues(_extra_autorun_inputs), "lex") };
+
       "bundles" slist => { "autorun" }; # run loaded bundles
 
     !services_autorun::
@@ -345,16 +376,16 @@ bundle common services_autorun
   reports:
     DEBUG|DEBUG_services_autorun::
       "DEBUG $(this.bundle): Services Autorun Disabled"
-        ifvarclass => "!services_autorun";
+        if => "!services_autorun";
 
       "DEBUG $(this.bundle): Services Autorun Enabled"
-        ifvarclass => "services_autorun";
+        if => "services_autorun";
 
       "DEBUG $(this.bundle): adding input='$(inputs)'"
-        ifvarclass => isvariable("inputs");
+        if => isvariable("inputs");
 
       "DEBUG $(this.bundle): adding input='$(found_inputs)'"
-        ifvarclass => isvariable("found_inputs");
+        if => isvariable("found_inputs");
 }
 
 bundle common hs

@@ -225,7 +225,9 @@ To enable encryption during policy updates define the class
 
 ### Preserve permissions
 
-By default the MPF enforces restrictive permissions for inputs. If the class
+By default the MPF does not *enforce* permissions of *inputs*. When
+*masterfiles* are copied to *inputs*, new files are created with default
+restrictive permissions. If the class
 ```cfengine_internal_preserve_permissions``` is defined the permissions of the
 policy server's masterfiles will be preserved when they are copied.
 
@@ -324,7 +326,7 @@ This [augments file][Augments] will defines `trigger_upgrade` on hosts with IPv4
     "trigger_upgrade": [
       "ipv4_10_10_1",
       "ipv4_10_10_2",
-      "cfengine_3_10_(?!2$)\d+"
+      "cfengine_3_10_(?!2$)\\d+"
     ]
    }
 }
@@ -400,7 +402,7 @@ This example illustrates enabling management of components on systemd hosts havi
 
 ```json
 {
-  "classes:" {
+  "classes": {
     "mpf_enable_cfengine_systemd_component_management": [ "redhat_8" ]
   }
 }
@@ -606,6 +608,15 @@ Prevent automatic trust for any host by specifying an empty value:
     }
 }
 ```
+### Append to inputs used by main policy
+
+The `inputs` key in augments can be used to add additional custom policy files.
+
+**See Also:** [Append to inputs used by update policy][Append to inputs used by update policy]
+
+**History:**
+
+* Introduced in CFEngine 3.7.3, 3.12.0
 
 ### services\_autorun
 
@@ -627,6 +638,25 @@ bundle agent example
 included in inputs even when the ```services_autorun``` class is **not**
 defined. Bundles tagged with ```autorun``` are **not required** to be placed in
 `services/autorun/` in order to be automatically actuated.
+
+#### Additional automatically loaded inputs
+
+When `def.mpf_extra_autorun_inputs` is defined (and services_autorun is defined), the policy files (`*.cf`) in those directories will be added to inputs. If a directory is specified but is not a directory, it will be skipped.
+
+```json
+{
+  "vars": {
+    "mpf_extra_autorun_inputs": [ "$(sys.policy_entry_dirname)/services/autorun/custom2",
+                                    "$(sys.policy_entry_dirname)/services/custom1" ]
+  }
+}
+```
+
+**See Also:** [Append to inputs used by main policy][Append to inputs used by main policy], [Append to inputs used by update policy][Append to inputs used by update policy]
+
+**History:**
+
+* Added in CFEngine 3.18.0
 
 ### postgresql\_full\_maintenance
 
@@ -661,7 +691,6 @@ This class can be defined by an [augments file][Augments]. For example:
 This class enables policy that cleans up report diffs when they exceed
 `def.max_client_history_size`. By default is is **off** unless a CFEngine
 Enterprise agent is detected.
-
 
 ### Configure splaytime
 
@@ -729,7 +758,19 @@ cf-serverd only allows specified users to request unscheduled execution remotely
 
 By default the MPF allows `root` to request unscheduled execution of non policy servers and does not allow any users to request unscheduled execution from policy servers.
 
-To configure the list of users allowed to request unscheduled execution from non policy servers define `vars.control_server_allowusers_non_policy_server`. This example allows the users `hubmanager` and  `cfoperator` to request unscheduled execution from policy servers and no users are allowed to request unscheduled runs from non policy servers.
+To configure the list of users allowed to request unscheduled execution define `vars.control_server_allowusers`.
+
+```
+{
+  "vars": {
+    "control_server_allowusers": [ "root", "nickanderson", "cfapache" ],
+  }
+}
+```
+
+It's possible to configure different users that are allowed for policy servers versus non policy servers via `vars.control_server_allowusers_non_policy_server` and `vars.control_server_allowusers_policy_server`. However, if  `vars.control_server_allowusers` is defined, it has precedence.
+
+This example allows the users `hubmanager` and  `cfoperator` to request unscheduled execution from policy servers and no users are allowed to request unscheduled runs from non policy servers.
 
 ```
 {
@@ -743,6 +784,36 @@ To configure the list of users allowed to request unscheduled execution from non
 **History:**
 
 - Added in 3.13.0, 3.12.1
+- Added `vars.control_server_allowusers` in 3.18.0
+
+**See Also:** [Configure hosts allowed to initate execution via cf-runagent][Configure hosts allowed to initate execution via cf-runagent]
+
+### Configure hosts allowed to initate execution via cf-runagent
+
+cf-serverd only allows specified hosts to request unscheduled execution remotely via `cf-runagent`.
+
+By default the MPF allows policy servers (as defined by `def.policy-servers`) to initiate agent runs via `cf-runagent`.
+
+
+To configure the list of hosts allowed to request unscheduled execution define `vars.mpf_admit_cf_runagnet_shell`. This example allows the IPv4 address `192.168.42.10`, the host `bastion.example.com`, and the host with identity `SHA=43c979e264924d0b4a2d3b568d71ab8c768ef63487670f2c51cd85e8cec63834` and policy servers the ability to initiate agent runs via `cf-runagent`.
+
+```json
+{
+    "vars": {
+        "mpf_admit_cf_runagent_shell": [ "192.168.42.10",
+                                         "bastion.example.com",
+                                         "SHA=43c979e264924d0b4a2d3b568d71ab8c768ef63487670f2c51cd85e8cec63834",
+                                         "@(def.policy_servers)"
+                                       ]
+    }
+}
+```
+
+**See Also:** [Configure users allowed to initate execution via cf-runagent][Configure users allowed to initate execution via cf-runagent]
+
+**History:**
+
+- Added in CFEngine 3.18.0
 
 ### Configure retention for files in log directories
 
@@ -1019,7 +1090,7 @@ This can be configured via [augments][Augments]:
 ```
 {
   "vars":{
-      "control_serverd_maxconnections": "1000"
+      "control_server_maxconnections": "1000"
   }
 }
 ```
@@ -1077,7 +1148,27 @@ Primarily for developer conveniance, this setting allows you to easily disable t
 }
 ```
 
-### Append to the main bundlesequence
+### Bundlesequence
+
+#### Classification bundles before autorun
+
+You can specify a list of bundles which should be run before autorun policies (if enabled).
+
+```json
+{
+  "vars":{
+    "control_common_bundlesequence_classification": [ "classification_one", "classification_two" ]
+  },
+
+  "inputs": [ "services/my_classificaton.cf" ]
+}
+```
+
+**History:**
+
+* Added in CFEngine 3.18.0
+
+#### Append to the main bundlesequence
 
 You can specify bundles which should be run at the end of the default
 bundlesequence by defining ```control_common_bundlesequence_end``` in the vars
@@ -1089,7 +1180,7 @@ For example:
 {
   "vars":{
     "control_common_bundlesequence_end": [ "mybundle1", "mybundle2" ]
-  }
+  },
 
   "inputs": [ "services/mybundles.cf" ]
 }
@@ -1208,8 +1299,8 @@ For example:
 ### Configure periodic package inventory refresh interval
 
 CFEngine refreshes software inventory when it makes changes via packages
-promises. Additionally, by default, CFEngine periodically refreshes it's
-internal cache of packages installed (every 60 minutes) and package updates that
+promises. Additionally, by default, CFEngine refreshes it's
+internal cache of packages installed (during each agent run) and package updates that
 are available (once a day) according to the default package manager in order to
 pick up changes made outside packages promises.
 
@@ -1225,7 +1316,10 @@ pick up changes made outside packages promises.
 WARNING: Be ware of setting `package_module_query_update_ifelapsed` too low,
 especially with public repositories or you may be banned for abuse.
 
-**History**: Added in 3.15.0, 3.12.3
+**History**:
+
+* Added in 3.15.0, 3.12.3
+* 3.17.0 decreased `package_module_query_installed_ifelapsed` from `60` to `0`
 
 ### Enable logging of Enterprise License utilization
 

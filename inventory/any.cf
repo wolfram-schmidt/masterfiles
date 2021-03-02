@@ -41,6 +41,11 @@ bundle agent inventory_autorun
       "packages_refresh" usebundle => cfe_autorun_inventory_packages(),
       handle => "cfe_internal_autorun_inventory_packages";
 
+    !disable_inventory_policy_servers::
+      "Inventory Policy Servers"
+        handle => "cfe_internal_autorun_inventory_policy_servers",
+        usebundle => cfe_autorun_inventory_policy_servers;
+
     !disable_inventory_proc::
       "proc" usebundle => cfe_autorun_inventory_proc(),
       handle => "cfe_internal_autorun_inventory_proc";
@@ -105,7 +110,7 @@ bundle agent cfe_autorun_inventory_listening_ports
       "ports" -> { "ENT-150" }
         slist => sort( "mon.listening_ports", "int"),
         meta => { "inventory", "attribute_name=Ports listening" },
-        ifvarclass => some("[0-9]+", "mon.listening_ports"),
+        if => some("[0-9]+", "mon.listening_ports"),
         comment => "We only want to inventory the listening ports if we have
                     values that make sense.";
 }
@@ -235,10 +240,17 @@ bundle agent cfe_autorun_inventory_memory
 
 bundle agent cfe_autorun_inventory_setuid
 # @brief Inventory setuid files and prune invalid entries from the setuid log
+# @inventory Setuid files
+# @inventory Root owned setuid files
+# @inventory Setgid files
+# @inventory Root owned setgid files
 {
   vars:
     !disable_inventory_setuid::
       "candidates" slist => lsdir( "$(sys.workdir)", "cfagent\..*\.log", true );
+
+      "_reg_setuid_filestat_modeoct" string => "10(4|5|6|7)\d+";
+      "_reg_setgid_filestat_modeoct" string => "10(2|3|6|7)\d+";
 
       "setuid_log_path"
         comment => "We select the file that matches the downcased version of the
@@ -252,21 +264,33 @@ bundle agent cfe_autorun_inventory_setuid
       "setuid[$(files)]"
         string => "$(files)",
         meta => { "inventory", "attribute_name=Setuid files" },
-        if => regcmp( "104\d+", filestat( $(files), modeoct ) );
+        if => regcmp( $(_reg_setuid_filestat_modeoct), filestat( $(files), modeoct ) );
 
       "rootsetuid[$(files)]"
         string => "$(files)",
         meta => { "inventory", "attribute_name=Root owned setuid files" },
-        if => and( regcmp( "104\d+", filestat( $(files), modeoct ) ),
+        if => and( regcmp( $(_reg_setuid_filestat_modeoct), filestat( $(files), modeoct ) ),
                    regcmp( "0", filestat( $(files), uid ) ));
+
+      "setgid[$(files)]" -> { "ENT-6793" }
+        string => "$(files)",
+        meta => { "inventory", "attribute_name=Setgid files" },
+        if => regcmp( $(_reg_setuid_filestat_modeoct), filestat( $(files), modeoct ) );
+
+      "rootsetgid[$(files)]" -> { "ENT-6793" }
+        string => "$(files)",
+        meta => { "inventory", "attribute_name=Root owned setgid files" },
+        if => and( regcmp( $(_reg_setuid_filestat_modeoct), filestat( $(files), modeoct ) ),
+                   regcmp( "0", filestat( $(files), gid ) ));
 
     files:
     !disable_inventory_setuid::
       "$(setuid_log_path)"
-        comment => "If the logged file is not currently setuid then we can
-                    safely purge it from the list to avoid unnecessary work.",
+        comment => concat( "If the logged file is not currently setuid|setgid then we can",
+                           "safely purge it from the list to avoid unnecessary work."),
         edit_line => delete_lines_matching( escape( $(files) ) ),
-        if => not( regcmp( "104\d+", filestat( $(files), modeoct ) ) );
+        if => not( regcmp( "($(_reg_setuid_filestat_modeoct))|($(_reg_setgid_filestat_modeoct))",
+                           filestat( $(files), modeoct ) ) );
 
   reports:
     !disable_inventory_setuid.(DEBUG|DEBUG_cfe_autorun_inventory_setuid)::
@@ -275,25 +299,44 @@ bundle agent cfe_autorun_inventory_setuid
 
 @if minimum_version(3.11)
 
-      "Candidate: setuid Files: $(files) modeoct=$(with)"
+      "Previously logged (setuid|setgid) file: $(files) modeoct=$(with)"
         with => filestat( $(files), modeoct );
 
-      "Remove $(files) from log by matching $(with)"
-        comment => "If the logged file is not currently setuid then we can
-                    safely purge it from the list to avoid unnecessary work.",
-        with =>  escape( $(files) ),
-        if => not( regcmp( "104\d+", filestat( $(files), modeoct ) ) );
+      "Should remove '$(files)' from '$(setuid_log_path)' because `filestat ($(files), modeoct )` returns '$(with)' which does not match '($(_reg_setuid_filestat_modeoct))|($(_reg_setgid_filestat_modeoct))' (setgid|setuid)"
+        comment => concat( "If the logged file is not currently set(uid&|gid) then we can",
+                           "safely purge it from the list to avoid unnecessary work."),
+
+        with => filestat( $(files), modeoct ),
+        if => not( regcmp( "($(_reg_setuid_filestat_modeoct))|($(_reg_setgid_filestat_modeoct))",
+                           filestat( $(files), modeoct ) ) );
 
       # The `with` attribute was introduced in 3.11
       "Inventory: setuid Files: $(files) modeoct=$(with)"
         with => filestat( $(files), modeoct ),
-        if => regcmp( "104\d+", filestat( $(files), modeoct ) );
+        if => regcmp( $(_reg_setuid_filestat_modeoct), filestat( $(files), modeoct ) );
 
       "Inventory: root owned setuid Files: $(files) modeoct=$(with)"
         with => filestat( $(files), modeoct ),
-        if => and( regcmp( "104\d+", filestat( $(files), modeoct ) ),
+        if => and( regcmp( $(_reg_setuid_filestat_modeoct), filestat( $(files), modeoct ) ),
                    regcmp( "0", filestat( $(files), uid ) ));
+
 @endif
+
+}
+
+bundle agent cfe_autorun_inventory_timezone
+# @brief Inventory timezone and GMT offset
+{
+  vars:
+      "_now" int => now();
+
+      "timezone" -> { "ENT-6161" }
+        string => strftime( localtime, "%Z", $(_now) ),
+        meta => { "inventory", "attribute_name=Timezone" };
+
+      "gmt_offset" -> { "ENT-6161" }
+        string => strftime( localtime, "%z", $(_now) ),
+        meta => { "inventory", "attribute_name=Timezone GMT Offset" };
 
 }
 
@@ -421,11 +464,11 @@ bundle agent cfe_autorun_inventory_proc_cpuinfo
     _have_cpuinfo::
       "cpuinfo_physical_cores"
         string => "$(default:cfe_autorun_inventory_proc.cpuinfo[cpu cores])",
-        ifvarclass => "have_cpuinfo_cpu_cores";
+        if => "have_cpuinfo_cpu_cores";
 
       "cpuinfo_cpu_model_name"
         string => "$(default:cfe_autorun_inventory_proc.cpuinfo[model name])",
-        ifvarclass => "have_cpuinfo_model_name";
+        if => "have_cpuinfo_model_name";
 
     # We need to be able to count the number of unique physical id lines in
     # /proc/cpu in order to get a physical processor count.
@@ -471,9 +514,9 @@ bundle agent cfe_autorun_inventory_proc_cpuinfo
      "DEBUG $(this.bundle)";
      "$(const.t)cpuinfo[$(default:cfe_autorun_inventory_proc.cpuinfo_array[$(default:cfe_autorun_inventory_proc.cpuinfo_idx)][0])] = $(default:cfe_autorun_inventory_proc.cpuinfo[$(default:cfe_autorun_inventory_proc.cpuinfo_array[$(default:cfe_autorun_inventory_proc.cpuinfo_idx)][0])])";
      "$(const.t)CPU physical cores: '$(cpuinfo_physical_cores)'"
-        ifvarclass => "have_cpuinfo_cpu_cores";
+        if => "have_cpuinfo_cpu_cores";
      "$(const.t)CPU model name: '$(cpuinfo_cpu_model_name)'"
-        ifvarclass => "have_cpuinfo_model_name";
+        if => "have_cpuinfo_model_name";
      "$(const.t)CPU Physical Sockets: '$(cpuinfo_physical_socket_inventory)'";
 }
 
@@ -493,7 +536,7 @@ bundle agent cfe_autorun_inventory_cpuinfo
     _have_proc_cpu_physical_cores::
       "cpuinfo_physical_cores"
         string => "$(default:cfe_autorun_inventory_proc.cpuinfo[cpu cores])",
-        #ifvarclass => "have_cpuinfo_cpu_cores",
+        #if => "have_cpuinfo_cpu_cores",
         meta => { "inventory", "attribute_name=CPU physical cores", "derived-from=$(default:cfe_autorun_inventory_proc.files[cpuinfo])" };
 
     _have_proc_cpu_model_name::
@@ -607,7 +650,7 @@ bundle agent cfe_autorun_inventory_aws_ec2_metadata_cache
         create => "true",
         edit_line => lines_present( "$(response[content])" ),
         edit_defaults => empty,
-        if => isvariable( response );
+        if => regcmp( ".*", "$(response[content][version])" );
 
 @if minimum_version(3.11)
       # template_method inline_mustache introduced in 3.11
@@ -617,7 +660,7 @@ bundle agent cfe_autorun_inventory_aws_ec2_metadata_cache
         edit_template_string => "{{{content}}}",
         template_data => @(response),
         create =>   "true",
-        if => isvariable( response );
+        if => regcmp( ".*", "$(response[content][version])" );
 @endif
 }
 
@@ -1004,6 +1047,11 @@ bundle agent cfe_autorun_inventory_packages
                                 fileexists("$(sys.workdir)/state/software_packages.csv"),
       };
 
+      "use_package_module_for_inventory" or => { "redhat", "debian", "suse", "sles", "alpinelinux" };
+      "use_package_method_for_inventory" or => { "gentoo", "aix" };
+      "use_package_method_generic_for_inventory"
+        not => "use_package_module_for_inventory|use_package_method_for_inventory";
+
   vars:
       # if we have the patches, 7 days; otherwise keep trying
       "refresh" string => ifelse("have_inventory", "10080",
@@ -1017,12 +1065,6 @@ bundle agent cfe_autorun_inventory_packages
     # exists. As package modules become available the package_methods should be
     # removed.
 
-    suse|sles::
-      "cfe_internal_non_existing_package"
-      package_policy => "add",
-      package_method => inventory_zypper($(refresh)),
-      action => if_elapsed_day;
-
     aix::
       "cfe_internal_non_existing_package"
       package_policy => "add",
@@ -1035,7 +1077,7 @@ bundle agent cfe_autorun_inventory_packages
       package_method => emerge,
       action => if_elapsed_day;
 
-    !redhat.!debian.!gentoo.!(suse|sles).!aix::
+    use_package_method_generic_for_inventory::
       "cfe_internal_non_existing_package"
       package_policy => "add",
       package_method => generic,
@@ -1045,11 +1087,28 @@ bundle agent cfe_autorun_inventory_packages
     DEBUG|DEBUG_cfe_autorun_inventory_packages::
       "DEBUG $(this.bundle): refresh interval is $(refresh)";
       "DEBUG $(this.bundle): we have the inventory files."
-        ifvarclass => "have_inventory";
+        if => "have_inventory";
       "DEBUG $(this.bundle): we don't have the inventory files."
-        ifvarclass => "!have_inventory";
+        if => "!have_inventory";
 }
 
+bundle agent cfe_autorun_inventory_policy_servers
+# @brief Inventory policy servers
+{
+  vars:
+
+    !disable_inventory_policy_servers::
+
+      "_primary_policy_server" -> { "ENT-6212" }
+        string => "$(sys.policy_hub)",
+        meta => { "inventory", "attribute_name=Primary Policy Server" };
+
+      "_policy_servers" -> { "ENT-6212" }
+        slist => { @(def.policy_servers) },
+        if => isgreaterthan( length( "def.policy_servers"), 0),
+        meta => { "inventory", "attribute_name=Policy Servers" };
+
+}
 body package_method inventory_lslpp(update_interval)
 # @brief AIX lslpp installation method for inventory purposes only
 # @param update_interval how often to update the package and patch list
@@ -1073,40 +1132,6 @@ body package_method inventory_lslpp(update_interval)
       package_patch_command  => "/usr/bin/true";
       package_delete_command => "/usr/bin/true";
       package_verify_command => "/usr/bin/true";
-}
-
-body package_method inventory_zypper(update_interval)
-# @depends common_knowledge rpm_knowledge suse_knowledge
-# @brief SUSE zypper installation method for inventory purposes only
-# @param update_interval how often to update the package and patch list
-#
-# This package method is a copy of the SUSE zypper method just for
-# inventory purposes.
-{
-      package_changes => "bulk";
-
-      package_list_command => "$(paths.path[rpm]) -qa --queryformat \"i | repos | %{name} | %{version}-%{release} | %{arch}\n\"";
-
-      # set it to "0" to avoid caching of list during upgrade
-      package_list_update_command => "$(suse_knowledge.call_zypper) list-updates";
-      package_list_update_ifelapsed => $(update_interval);
-
-      package_patch_list_command => "$(suse_knowledge.call_zypper) patches";
-      package_installed_regex => "i.*";
-      package_list_name_regex    => "$(rpm_knowledge.rpm_name_regex)";
-      package_list_version_regex => "$(rpm_knowledge.rpm_version_regex)";
-      package_list_arch_regex    => "$(rpm_knowledge.rpm_arch_regex)";
-
-      package_patch_installed_regex => ".*Installed.*|.*Not Applicable.*";
-      package_patch_name_regex    => "[^|]+\|\s+([^\s]+).*";
-      package_patch_version_regex => "[^|]+\|[^|]+\|\s+([^\s]+).*";
-
-      package_name_convention => "$(name)";
-      package_add_command => "$(suse_knowledge.call_zypper) --help >/dev/null 2>&1 ; /bin/true";
-      package_delete_command => "$(suse_knowledge.call_zypper) --non-interactive remove --force-resolution";
-      package_update_command => "$(suse_knowledge.call_zypper) --non-interactive update";
-      package_patch_command => "$(suse_knowledge.call_zypper) --non-interactive patch$"; # $ means no args
-      package_verify_command => "$(suse_knowledge.call_zypper) --non-interactive verify$";
 }
 
 bundle agent cfe_autorun_inventory_cmdb
@@ -1149,11 +1174,11 @@ bundle agent inventory_cmdb_load(file)
   vars:
       "cmdb"
         data => readjson($(file), "999999"),
-        ifvarclass => fileexists( $(file) );
+        if => fileexists( $(file) );
 
       "cmdb_string"
       string => format("%S", cmdb),
-        ifvarclass => isvariable( cmdb );
+        if => isvariable( cmdb );
 
       "bkeys" slist => getindices("cmdb[vars]");
       "vkeys_$(bkeys)" slist => getindices("cmdb[vars][$(bkeys)]");
@@ -1164,13 +1189,13 @@ bundle agent inventory_cmdb_load(file)
   reports:
     DEBUG|DEBUG_inventory_cmdb_load::
       "DEBUG $(this.bundle): Got CMDB data from $(file): $(cmdb_string)"
-        ifvarclass => "have_cmdb_data";
+        if => "have_cmdb_data";
       "DEBUG $(this.bundle): Got CMDB key = $(vkeys_$(bkeys)), CMDB value = $((vkeys_$(bkeys)))"
-        ifvarclass => "have_cmdb_data";
+        if => "have_cmdb_data";
       "DEBUG $(this.bundle): Got CMDB class = $(ckeys)"
-        ifvarclass => "have_cmdb_data";
+        if => "have_cmdb_data";
       "DEBUG $(this.bundle): Could not read the CMDB data from $(file)"
-        ifvarclass => "!have_cmdb_data";
+        if => "!have_cmdb_data";
 }
 
 body copy_from inventory_cmdb_copy_from

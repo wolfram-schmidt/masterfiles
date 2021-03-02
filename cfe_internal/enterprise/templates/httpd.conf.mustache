@@ -181,8 +181,8 @@ LogLevel warn
   # A more secure setting might be:
   # SSLCipherSuite EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH
 
-  # Some versions of SSL are known to be insecure
-  SSLProtocol all -SSLv2 -SSLv3
+  # Some versions of SSL and TLS are known to be insecure, so we disable them by default
+  SSLProtocol all -SSLv2 -SSLv3 -TLSv1
 
   SSLRandomSeed startup builtin
   SSLRandomSeed connect builtin
@@ -248,6 +248,13 @@ AddType    application/x-httpd-php-source php{{{vars.cfe_internal_hub_vars.php_v
     RewriteCond %{HTTPS} off
     RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
     {{/classes.cfe_enterprise_enable_plain_http}}
+
+    {{#classes.mission_portal_index_php_redirect_enabled}}
+    # redirect from `index.php/path` to `/path`
+    RewriteCond %{REQUEST_URI} !(.*)/api/(.*) [NC]  #do not apply redirect to internal APIs for backward compatibility
+    RewriteCond %{THE_REQUEST} /index\.php/(.+)\sHTTP [NC]
+    RewriteRule ^ /%1 [NE,L,R]
+    {{/classes.mission_portal_index_php_redirect_enabled}}
 
     RewriteCond %{REQUEST_FILENAME} -s [OR]
     RewriteCond %{REQUEST_FILENAME} -l [OR]
