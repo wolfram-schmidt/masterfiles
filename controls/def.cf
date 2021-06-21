@@ -161,6 +161,12 @@ bundle common def
         comment => "This variable defines the list of classes that should
                     trigger exec_command if any of them are defined.";
 
+      # Users allowed on sockets
+      # Set the users allowed by default, if not already set (e.g. via augments)
+      "control_executor_runagent_socket_allow_users"
+        slist => { "cfapache" },
+        unless => isvariable( $(this.promiser) ),
+        if => and( "enterprise_edition", "am_policy_hub");
 
       # Agent Controls
 
@@ -206,13 +212,15 @@ bundle common def
                           "false");
 
       # Agent controls
-
-      "control_agent_files_single_copy"
+@if minimum_version(3.18.0)
+      # TODO When 3.18 is the oldest supported LTS, redact this macro and associated protections
+      "control_agent_files_single_copy" -> { "CFE-3622" }
         slist => { },
-        if => not( some( ".*", "control_agent_files_single_copy") ),
+        if => not( isvariable( "control_agent_files_single_copy" ) ),
         comment => "Default files_single_copy to an empty list if it is not
                     defined. It is expected that users can override the default
                     by setting this value from the augments file (def.json).";
+@endif
 
       "control_server_maxconnections"
         int => "200",
@@ -255,7 +263,9 @@ bundle common def
       comment => "Define modules path",
       handle => "common_def_vars_dir_modules";
 
-      "dir_plugins"     string => translatepath("$(sys.workdir)/plugins"),
+      # TODO: Remove after 3.15 is no longer supported (December 18th 2022)
+      "dir_plugins" -> { "CFE-3618" }
+      string => translatepath("$(sys.workdir)/plugins"),
       comment => "Define plugins path",
       handle => "common_def_vars_dir_plugins";
 
@@ -347,6 +357,10 @@ bundle common def
     any::
       "log_dir[outputs]" string => "$(sys.workdir)/outputs";
       "log_dir[reports]" string => "$(sys.workdir)/reports";
+
+    # TODO ENT-6845 - move package module logs to $(sys.workdir)/log/something
+    windows::
+      "log_dir[package_logs]" string => "$(const.dirsep)cfengine_package_logs";
 
     enterprise.am_policy_hub::
       "log_dir[application]" string => "$(sys.workdir)/httpd/htdocs/application/logs";
@@ -452,6 +466,11 @@ bundle common def
 
   classes:
 
+      "_have_control_agent_files_single_copy" -> { "CFE-3622"}
+        expression => isvariable( "def.control_agent_files_single_copy" );
+      "_have_control_executor_runagent_socket_allow_users"
+        expression => isvariable( "def.control_executor_runagent_socket_allow_users" );
+
       "cfengine_recommendations_enabled"
         expression => "!cfengine_recommendations_disabled";
 
@@ -492,13 +511,13 @@ bundle common def
 
       "cfengine_internal_encrypt_transfers" expression => "!any";
 
-      # Purge policies that don't exist on the server side.
+      # Do not purge policies that don't exist on the server side.
       # you can also request it from the command line with
-      # -Dcfengine_internal_purge_policies
+      # -Dcfengine_internal_purge_policies_disabled
 
       # NOTE THAT THIS CLASS ALSO NEEDS TO BE SET IN update.cf
 
-      "cfengine_internal_purge_policies" expression => "!any";
+      "cfengine_internal_purge_policies_disabled" expression => "!any";
 
       # Preserve permissions of the policy server's masterfiles.
       # you can also request it from the command line with

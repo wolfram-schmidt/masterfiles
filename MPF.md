@@ -137,8 +137,8 @@ For example:
 
 ### Specify the agent bundle used for policy update
 
-The MPF uses `cfe_internal_update_policy_cpv` to update inputs, modules, and
-plugins on remote agents. When new policy is verified by the agent
+The MPF uses `cfe_internal_update_policy_cpv` to update inputs and modules on
+remote agents. When new policy is verified by the agent
 `/var/cfengine/masterfiles/cf_promises_validated` is updated with the current
 timestamp. This file is used by remote agents to avoid unnecessary inspection of
 all files each time the update policy is triggered.
@@ -255,21 +255,28 @@ If you want to periodically perform a full scan consider adding custom policy to
 simply remove ```$(sys.inputdir)/cf_promises_validated```. This will cause the
 file to be repaired during the next update run triggering a full scan.
 
-### Automatically remove files not present upstream (SYNC masterfiles)
+### Disable automatically removing files not present upstream (SYNC masterfiles)
 
-If the class ```cfengine_internal_purge_policies``` is defined the update
-behavior to change from only copying changed files down to performing a
-synchronization by purging files on the client that do not exist on the server.
+By default, the MPF will keep inputdir in sync with masterfiles on the hub. If
+the class ```cfengine_internal_purge_policies_disabled``` is defined the update
+behavior will only keep files that exist on the remote up to date locally, files
+that exist locally that do not exist upstream will be left behind. Note, if this
+is disabled and a policy file that is dynamically loaded based on it's presence
+is renamed, duplicate definition errors may occur, preventing policy execution.
 
 This [augments file][Augments] will enable this behavior for all clients.
 
 ```
 {
   "classes": {
-    "cfengine_internal_purge_policies": [ "any" ]
+    "cfengine_internal_purge_policies_disabled": [ "any" ]
   }
 }
 ```
+
+**History:**
+
+- Introduced in 3.18.0, previously, the default behavior was opposite and the class `cfengine_internal_purge_policies`  had to be enabled to keep inputs in sync with masterfiles.
 
 ### Disable limiting robot agents
 
@@ -623,6 +630,19 @@ The `inputs` key in augments can be used to add additional custom policy files.
 When the ```services_autorun``` class is defined bundles tagged with
 ```autorun``` are actuated in lexical order.
 
+Example definition of ```services_autorun``` using [Augments (def.json)][Augments]:
+
+
+```json
+{
+  "classes": {
+    "services_autorun": [ "any::" ]
+  }
+}
+```
+
+Example policy with bundle tagged for execution when ```services_autorun``` is defined:
+
 ```cf3
 bundle agent example
 {
@@ -637,7 +657,17 @@ bundle agent example
 **Note:** ```.cf``` files located in `services/autorun/` are automatically
 included in inputs even when the ```services_autorun``` class is **not**
 defined. Bundles tagged with ```autorun``` are **not required** to be placed in
-`services/autorun/` in order to be automatically actuated.
+`services/autorun/` in order to be automatically actuated. If you have an
+automatically loaded policy file in `services/autorun` which loads additional
+policy dynamically, `cf-promises` may not be able to resolve syntax errors. Use
+[`mpf_extra_autorun_inputs`][mpf_extra_autorun_inputs]
+and or
+[`control_common_bundlesequence_classification`][Masterfiles Policy Framework#Classification bundles before autorun]
+to work around this limitation.
+
+**History:**
+
+* Added in CFEngine 3.6.0
 
 #### Additional automatically loaded inputs
 
@@ -737,6 +767,22 @@ Example configuration via augments:
 ```
 
 The above configuration would result in exec_command being triggered at the top and half hour and sleeping for up to `splaytime` before agent execution.
+
+### Configure cf-execd runagent socket users
+
+On Enterprise hubs, access to cf-execd sockets can be configured as a list of users who should be allowed by defining `vars.control_executor_runagent_socket_allow_users`. By default on Enterprise Hubs, `cfapache` is allowed to access runagent sockets.
+
+```
+{
+  "vars": {
+    "control_executor_runagent_socket_allow_users": [ "cfapache", "vpodzime" ]
+  }
+}
+```
+
+**History:**
+
+* Added in CFEngine 3.18.0
 
 ### Allow connections from the classic/legacy protocol
 
