@@ -415,7 +415,8 @@ bundle common hs
                           "hs_policies/mysql.cf",
                           "hs_policies/status.cf",
                           "hs_policies/users.cf", 
-                          "hs_policies/web.cf", };
+                          "hs_policies/web.cf",
+                          "hs_policies/zabbix.cf", };
 
       "bundles" slist => { "status",
 
@@ -453,5 +454,7 @@ bundle common hs
                            "imagemagick",
                            "lofarcam",
                            "snapfix",
+                           "timesyncd",
+                           "zabbix",
                           };
 }
