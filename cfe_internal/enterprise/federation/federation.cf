@@ -316,6 +316,10 @@ bundle agent clean_when_off
   vars:
     "user" string => "$(cfengine_enterprise_federation:transport_user.user)";
     "home" string => "$(cfengine_enterprise_federation:transport_user.home)";
+@if minimum_version(3.15)
+    "remote_hubs_table_row_count" string => execresult(`$(sys.bindir)/psql cfsettings --quiet --tuples-only --command "SELECT COUNT(*) FROM remote_hubs" 2>/dev/null`, useshell);
+    "federated_reporting_settings_table_row_count" string => execresult(`$(sys.bindir)/psql cfsettings --quiet --tuples-only --command "SELECT COUNT(*) FROM federated_reporting_settings" 2>/dev/null`, useshell);
+@endif
 
   users:
     "$(user)"
@@ -325,6 +329,9 @@ bundle agent clean_when_off
       "$(cfengine_enterprise_federation:config.path_setup_status)" -> { "ENT-7233" }
         comment => "We must remove this file for Mission Portal to understand that the federation is not configured",
         delete => default:tidy;
+      "$(cfengine_enterprise_federation:config.path)" -> { "ENT-7969" }
+         comment => "We must remove this file for Mission Portal to understand that the federation is not configured",
+         delete => default:tidy;
 
   methods:
     "rm_rf_cftransport_home_dir" usebundle => default:rm_rf("$(home)");
@@ -332,14 +339,18 @@ bundle agent clean_when_off
   classes:
     selinux_enabled.default:_stdlib_path_exists_semanage::
       "has_cftransport_fcontext" expression => returnszero("$(paths.semanage) fcontext -l | grep $(home)", "useshell");
+    "remote_hubs_table_empty" expression => returnszero(`[ $(const.dollar)($(sys.bindir)/psql cfsettings --quiet --tuples-only --command "SELECT COUNT(*) FROM remote_hubs") -eq "0"]`, "useshell");
+    "federated_reporting_settings_table_empty" expression => returnszero(`[ $(const.dollar)($(sys.bindir)/psql cfsettings --quiet --tuples-only --command "SELECT COUNT(*) FROM federated_reporting_settings") -eq "0"]`, "useshell");
+
 
   commands:
-      am_superhub::
       # Oh, the humanity! Where for art thou databases: promises for psql!
-      `$(sys.bindir)/psql cfsettings -c "TRUNCATE TABLE remote_hubs"` -> { "ENT-7233" };
-      `$(sys.bindir)/psql cfsettings -c "TRUNCATE TABLE federated_reporting_settings" -> { "ENT-7233" }`;
+      `$(sys.bindir)/psql cfsettings --quiet --command "TRUNCATE TABLE remote_hubs"` -> { "ENT-7233" }
+        if => isgreaterthan( "$(remote_hubs_table_row_count)", "0" );
+      `$(sys.bindir)/psql cfsettings --quiet --command "TRUNCATE TABLE federated_reporting_settings"` -> { "ENT-7233" }
+        if => isgreaterthan( "$(federated_reporting_settings_table_row_count)", "0" );
 
-      # _stdlib_path_exists_<command> and paths.<command> are defined is masterfiles/lib/paths.cf
+      # _stdlib_path_exists_<command> and paths.<command> are defined in masterfiles/lib/paths.cf
     selinux_enabled.default:_stdlib_path_exists_semanage.has_cftransport_fcontext::
       "$(paths.semanage) fcontext -d '$(home)/.ssh(/.*)?'";
 
@@ -670,10 +681,11 @@ bundle agent entry
       "CFEngine Enterprise Federation Configuration"
         handle => "config",
         usebundle => config;
-    am_off|config_not_exists::
+    am_policy_hub.(am_off|config_not_exists)::
       "CFEngine Enterprise Federation Transport Off"
         handle => "clean_when_off",
-        usebundle => clean_when_off;
+        usebundle => clean_when_off,
+        if => cf_version_minimum("3.15");
     enabled.am_on::
       "CFEngine Enterprise Federation Transport User"
         handle => "transport_user",
@@ -737,7 +749,7 @@ bundle agent setup_status
     "ssh_server_fingerprint"
       # ssh-keyscan is used because it's more reliable/easy than trying to
       # parse sshd config to find the file and then readfile():
-      string => execresult("ssh-keyscan localhost 2>/dev/null | sed 's/localhost //g'", useshell);
+      string => execresult("ssh-keyscan localhost 2>/dev/null | sed 's/localhost //g' | sort", useshell);
   classes:
     "superhub_setup_status_complete"
       expression => "any",

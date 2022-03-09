@@ -32,7 +32,10 @@ m4_undefine([cfversion])
 m4_undefine([cfversion_from_file])
 m4_undefine([cfversion_from_env])
 
-AS_IF([test -n "$RELEASE"], [AC_SUBST([RELEASE], ["$RELEASE"])], [AC_SUBST([RELEASE], [1])])
+m4_define([cfrelease], m4_normalize(m4_esyscmd([cat CFRELEASE])))
+AC_SUBST([RELEASE], [cfrelease])
+cfengine_release=cfrelease
+m4_undefine([cfrelease])
 
 AC_CANONICAL_TARGET
 
@@ -158,6 +161,7 @@ dnl ######################################################################
 AC_MSG_RESULT()
 AC_MSG_RESULT(Summary:)
 AC_MSG_RESULT(Version              -> $cfengine_version)
+AC_MSG_RESULT(Release              -> $cfengine_release)
 AM_COND_IF(HAVE_CORE,
     AC_MSG_RESULT(Core directory       -> $core_dir),
     AC_MSG_RESULT(Core directory       -> not set - tests are disabled)
@@ -221,17 +225,12 @@ do
 done
 for i in templates cfe_internal modules/packages/vendored
 do
-    for j in `find "$srcdir/$i" -name '*.mustache' -o -name '*.sh' -o -name '*.awk' -o -name '*.sed' -o -name '*.ps1'`
+    for j in `find "$srcdir/$i" -name '*.mustache' -o -name '*.sh' -o -name '*.awk' -o -name '*.sed' -o -name '*.ps1' -o -name '*.py'`
     do
         MASTERFILES_INSTALL_TARGETS="$MASTERFILES_INSTALL_TARGETS $j"
     done
 done
 
-for i in `find "$srcdir/modules/packages/vendored" -type f`
-do
-    # add .mustache files, but from build dir instead to support ci/tests
-    MASTERFILES_INSTALL_TARGETS="$MASTERFILES_INSTALL_TARGETS `echo $i | sed -e 's,vendored/,,' -e 's,modules,build/modules,' -e 's,.mustache,,'`"
-done
 
 AC_SUBST(MASTERFILES_INSTALL_TARGETS)
 

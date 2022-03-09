@@ -14,6 +14,7 @@ various aspects of the system.
 * `services/main.cf` - Contains an empty bundle agent main where custom policy
   can be integrated.
 * `services/autorun/` - Automatically included policy files.
+* `.no-distrib/` - A directory that is excluded from policy updates from remote agents.
 
 The MPF is continually updated. You can track its development
 on [github](https://github.com/cfengine/masterfiles/).
@@ -308,6 +309,24 @@ directly in ```/opt/cfengine/dc-scripts```.
 **Note:** Any policy in the distribution location (/var/cfengine/masterfiles)
 will be deleted the first time this tooling runs. Be wary of local modifications
 before enabling.
+
+### Policy Analyzer Exclude Files
+
+When the policy analyzer is enabled, a copy of the policy is made available for viewing from Mission Portal. To exclude files from this view you can define ```def.cfengine_enterprise_policy_analyzer_exclude_files``` as a list of regular expressions matching files that you do not want to be viewable from Policy Analyzer.
+
+This [augments file][Augments] will prevent any files named `please-no-copy` and any file names that contain `no-copy-me` from being copied and visible from Policy Analyzer.
+
+```json
+{
+  "vars": {
+    "cfengine_enterprise_policy_analyzer_exclude_files": [ "please-no-copy", ".*no-copy-me.*" ]
+  },
+}
+```
+
+**History:**
+
+* Added in 3.19.0, 3.18.1
 
 ### Policy Permissions
 
@@ -1372,6 +1391,44 @@ the watchdog will not be active.
 ```
 
 **See Also:** [Watchdog documentation][cfe_internal/core/watchdog]
+
+### Environment Variables
+
+Environment variables that should be inherited by child commands can be set using `def.control_agent_environment_vars_default`. The policy defaults are overridden if this is defined. This can be useful if you want to modify the default environment variables that are set.
+
+For example:
+
+```json
+{
+  "vars": {
+    "control_agent_environment_vars_default":
+      [ "DEBIAN_FRONTEND=noninteractive",
+        "XPG_SUS_ENV=ON" ]
+  }
+}
+```
+
+The environment variables can also be extended by defining `def.control_agent_environment_vars_extra`. The extra environment variables defined here are combined with the defaults (if they exist).
+
+```json
+{
+  "vars": {
+    "control_agent_environment_vars_extra": [ "XPG_SUS_ENV=ON" ]
+  }
+}
+```
+
+**Notes:**
+
+* Simple augments as shown above apply to *all* hosts. Consider using the
+  [augments key][Augments#augments] or [host specific data][Augments#host_specific.json] if you want to set environment variables
+  differently across different sets of hosts. The value set via Augments takes
+  precedence over policy defaults, so be sure to take that into account when
+  configuring.
+
+**History:**
+
+* Introduced in 3.20.0, 3.18.2
 
 ### Modules
 

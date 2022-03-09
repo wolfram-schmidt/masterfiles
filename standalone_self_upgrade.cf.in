@@ -83,7 +83,7 @@ bundle agent cfengine_software
       # Default desired CFEngine software
       "pkg_name" string => ifelse( isvariable( "def.cfengine_software_pkg_name" ), $(def.cfengine_software_pkg_name), "cfengine-nova");
       "pkg_version" string => ifelse( isvariable( "def.cfengine_software_pkg_version" ), $(def.cfengine_software_pkg_version), "@VERSION@");
-      "pkg_release" string => ifelse( isvariable( "def.cfengine_software_pkg_release" ), $(def.cfengine_software_pkg_release), "1");
+      "pkg_release" string => ifelse( isvariable( "def.cfengine_software_pkg_release" ), $(def.cfengine_software_pkg_release), "@RELEASE@");
       "pkg_arch" string => ifelse( isvariable( "def.cfengine_software_pkg_arch" ), $(def.cfengine_software_pkg_arch), "x86_64");
       "package_dir" string => ifelse( isvariable( "def.cfengine_software_pkg_dir" ), $(def.cfengine_software_pkg_dir), "$(sys.flavour)_$(sys.arch)");
       "pkg_edition_path" string => ifelse( isvariable( "def.cfengine_software_pkg_edition_path" ), $(def.cfengine_software_pkg_edition_path), "enterprise/Enterprise-$(pkg_version)/agent");
@@ -217,8 +217,9 @@ bundle agent cfengine_software_version
 # upgrading.
 {
   classes:
-      "__supported_platform" -> { "ENT-5045", "ENT-5152", "ENT-4094" }
+      "__supported_platform" -> { "ENT-5045", "ENT-5152", "ENT-4094", "ENT-8247" }
         or => {
+                "amazon_linux",
                 "redhat.!redhat_4",
                 "centos.!centos_4",
                 "debian",
@@ -231,7 +232,7 @@ bundle agent cfengine_software_version
 
       # Add "windows" to __new_implementation classes with ENT-6823
       "__new_implementation"
-        or => { "redhat", "centos", "ubuntu", "debian", "suse", "opensuse" };
+        or => { "amazon_linux", "redhat", "centos", "ubuntu", "debian", "suse", "opensuse" };
 
   vars:
       "pkg_name" string => "$(cfengine_software.pkg_name)";
@@ -281,7 +282,7 @@ bundle agent cfengine_software_version_packages2
 
   packages:
 
-    (redhat|centos)::
+    (amazon_linux|redhat|centos)::
       "$(local_software_dir)/$(cfengine_package_names.my_pkg)"
       policy => "present",
       package_module => yum,
@@ -495,6 +496,7 @@ bundle common cfengine_package_names
       # Windows
       "pkg[windows_x86_64]" string => "$(pkg_name)-$(pkg_version)-$(pkg_release)-x86_64.msi";
       "pkg[windows_i686]" string => "$(pkg_name)-$(pkg_version)-$(pkg_release)-i686.msi";
+
       "my_pkg"
         string => "$(pkg[$(sys.flavor)_$(sys.arch)])",
         comment => "The package name for the currently executing platform.";
@@ -570,6 +572,10 @@ bundle agent cfengine_master_software_content
                               "ubuntu_18" };
 
       "dir[$(_deb_dists)_$(_32bit_arches)]" string => "agent_deb_i386";
+
+      # Windows
+      "dir[windows_x86_64]" string => "windows_x86_64";
+      "dir[windows_i686]"   string => "windows_i686";
 
       "platform_dir" slist => getindices( dir );
       "download_dir" string => "$(sys.workdir)/master_software_updates";

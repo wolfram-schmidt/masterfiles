@@ -52,11 +52,21 @@ bundle agent cfe_internal_setup_knowledge
         perms => mog("0600", "root", "root" );
 
       "$(cfe_internal_hub_vars.docroot)"
-      comment => "All files in there should be at least 0644",
+      comment => "All files in there should be at least 0460. Giving cfapache group full access",
       handle => "cfe_internal_setup_knowledge_files_doc_root_2",
       file_select => cfe_internal_docroot_perms,
-      perms => mog("0440", "root", $(def.cf_apache_group) ),
+      perms => mog("0460", "root", $(def.cf_apache_group) ),
       depth_search => recurse_exclude("inf");   # see exclude dirs in recurse_exclude() body
+
+      "$(cfe_internal_hub_vars.docroot)/."
+      comment => "The top level docroot dir should be at least 0460 with root:cfapache",
+      handle => "cfe_internal_setup_knowledge_dir_doc_root",
+      perms => mog("0460", "root", $(def.cf_apache_group) );
+
+      "$(sys.workdir)/httpd/."
+      comment => "httpd dir should be 755",
+      handle => "cfe_internal_setup_knowledge_dir_httpd",
+      perms => mog("755", "root", "root");
 
       "$(cfe_internal_hub_vars.docroot)/.htaccess"
       comment => "Correct up htaccess file in doc root",
@@ -154,17 +164,36 @@ bundle agent cfe_internal_setup_knowledge
         file_select => cfe_internal_docroot_api_static_async_query_status_status_perms,
         perms => mog("0660", "root", $(def.cf_apache_group) );
 
-      "$(sys.workdir)/httpd/application/logs/."
-      comment => "Ensure permissions for $(sys.workdir)/httpd/application/logs",
-      handle => "cfe_internal_setup_knowledge_files_httpd_application_logs",
+      "$(sys.workdir)/httpd/logs/application/." -> { "ENT-7731", "ENT-2758" }
+      comment => "Ensure permissions for $(sys.workdir)/httpd/logs/application/.",
+      handle => "cfe_internal_setup_knowledge_files_httpd_application_log_dir",
       create => "true",
       perms => mog("0640", $(def.cf_apache_user), $(def.cf_apache_group));
 
+      "$(sys.workdir)/httpd/logs/application/." -> { "ENT-7730" }
+        comment => "Ensure permissions for $(sys.workdir)/httpd/logs/application/.*",
+        handle => "cfe_internal_setup_knowledge_files_httpd_application_log_files",
+        file_select => plain,
+        depth_search => recurse( "inf" ),
+        perms => mog("0600", $(def.cf_apache_user), $(def.cf_apache_group));
+
       "$(sys.workdir)/httpd/logs/."
       comment => "Ensure permissions for $(sys.workdir)/httpd/logs",
-      handle => "cfe_internal_setup_knowledge_files_httpd_logs",
+      handle => "cfe_internal_setup_knowledge_files_httpd_logs_dir",
       create => "true",
       perms => mog("0640", $(def.cf_apache_user), $(def.cf_apache_group));
+
+      "$(sys.workdir)/httpd/logs/." -> { "ENT-7730" }
+        comment => "Ensure permissions for $(sys.workdir)/httpd/logs",
+        handle => "cfe_internal_setup_knowledge_files_httpd_log_files",
+        file_select => plain,
+        depth_search => recurse_with_base( "0" ),
+        perms => mog("0600", root, root);
+
+      "/var/log/postgresql.log" -> { "ENT-7961" }
+        comment => "Ensure permissions for PostgreSQL log",
+        handle => "cfe_internal_setup_knowledge_files_postgresql_log_file",
+        perms => mog("0600", "cfpostgres", "cfpostgres");
 
       "$(cfe_internal_hub_vars.docroot)/../ssl/."
         perms => mog("0440", "root", "root" ),
@@ -526,6 +555,14 @@ body depth_search cfe_internal_docroot_application_perms
 
 body perms state_dir_system_owned
 {
+#+begin_ENT-951
+# Remove after 3.20 is not supported
+        rxdirs => "true";
+@if minimum_version(3.20)
+        rxdirs => "false";
+@endif
+#+end
+
       mode   => "0600";
       !windows::
         owners => { "root" };
