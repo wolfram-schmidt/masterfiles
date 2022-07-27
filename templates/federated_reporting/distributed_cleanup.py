@@ -10,7 +10,7 @@ This enables policy in cfe_internal/enterprise/federation/federation.cf
 ```json
 {
   "classes": {
-    "cfengine_mp_enable_fr_distributed_cleanup": [ "any::" ]
+    "cfengine_mp_fr_enable_distributed_cleanup": [ "any::" ]
   }
 }
 ```
@@ -25,7 +25,7 @@ admin credentials on each feeder.
 import argparse
 import logging
 import os
-import platform
+import socket
 import string
 import random
 import subprocess
@@ -59,14 +59,85 @@ CERT_PATH = os.path.join(DISTRIBUTED_CLEANUP_DIR, "hubs.cert")
 
 # Note: remove the file at DISTRIBUTED_CLEANUP_SECRET_PATH to reset everything.
 # api calls will overwrite fr_distributed_cleanup user and role on superhub and all feeders.
-DISTRIBUTED_CLEANUP_SECRET_PATH = os.path.join(WORKDIR, "state/fr_distributed_cleanup.cfsecret")
+DISTRIBUTED_CLEANUP_SECRET_PATH = os.path.join(
+    WORKDIR, "state/fr_distributed_cleanup.cfsecret"
+)
 
 
-def interactive_setup():
-    fr_distributed_cleanup_password = "".join(random.choices(string.printable, k=20))
-    admin_pass = getpass(
-        prompt="Enter admin password for superhub {}: ".format(platform.node())
+def interactive_setup_feeder(hub, email, fr_distributed_cleanup_password, force_interactive=False):
+    if force_interactive:
+        feeder_credentials = input(
+            "admin credentials for {}: ".format(
+                hub["ui_name"]
+            )
+        )
+        print() # output newline for easier reading
+    else:
+        feeder_credentials = getpass(
+            prompt="Enter admin credentials for {}: ".format(
+                hub["ui_name"]
+            )
+        )
+    feeder_hostname = hub["ui_name"]
+    feeder_api = NovaApi(
+        api_user="admin",
+        api_password=feeder_credentials,
+        cert_path=CERT_PATH,
+        hostname=feeder_hostname,
     )
+
+    logger.info("Creating fr_distributed_cleanup role on %s", feeder_hostname)
+    response = feeder_api.put(
+        "role",
+        "fr_distributed_cleanup",
+        {
+            "description": "fr_distributed_cleanup Federated Host Cleanup role",
+            "includeContext": "cfengine_3",
+        },
+    )
+    if response["status"] != 201:
+        print(
+            "Problem creating fr_distributed_cleanup role on superhub. {}".format(
+                response
+            )
+        )
+        sys.exit(1)
+    response = feeder_api.put_role_permissions(
+        "fr_distributed_cleanup", ["host.delete"]
+    )
+    if response["status"] != 201:
+        print("Unable to set RBAC permissions on role fr_distributed_cleanup")
+        sys.exit(1)
+    logger.info("Creating fr_distributed_cleanup user on %s", feeder_hostname)
+    response = feeder_api.put(
+        "user",
+        "fr_distributed_cleanup",
+        {
+            "description": "fr_distributed_cleanup Federated Host Cleanup user",
+            "email": "{}".format(email),
+            "password": "{}".format(fr_distributed_cleanup_password),
+            "roles": ["fr_distributed_cleanup"],
+        },
+    )
+    if response["status"] != 201:
+        print(
+            "Problem creating fr_distributed_cleanup user on {}. {}".format(
+                feeder_hostname, response
+            )
+        )
+        sys.exit(1)
+
+
+def interactive_setup(force_interactive=False):
+    fr_distributed_cleanup_password = "".join(random.choices(string.digits + string.ascii_letters, k=20))
+    if force_interactive:
+        admin_pass = input("admin password for superhub {}: ".format(socket.getfqdn()))
+        print() # newline for easier reading
+    else:
+        admin_pass = getpass(
+            prompt="Enter admin password for superhub {}: ".format(socket.getfqdn())
+        )
+
     api = NovaApi(api_user="admin", api_password=admin_pass)
 
     # first confirm that this host is a superhub
@@ -97,6 +168,7 @@ def interactive_setup():
         sys.exit(1)
 
     email = input("Enter email for fr_distributed_cleanup accounts: ")
+    print() # newline for easier reading
 
     logger.info("Creating fr_distributed_cleanup role on superhub...")
     response = api.put(
@@ -104,7 +176,7 @@ def interactive_setup():
         "fr_distributed_cleanup",
         {
             "description": "fr_distributed_cleanup Federated Host Cleanup role",
-            "includeContext": "cfengine",
+            "includeContext": "cfengine_3",
         },
     )
     if response["status"] != 201:
@@ -140,59 +212,7 @@ def interactive_setup():
         sys.exit(1)
 
     for hub in feederResponse["hubs"]:
-        feeder_credentials = getpass(
-            prompt="Enter admin credentials for {} at {}: ".format(
-                hub["ui_name"], hub["api_url"]
-            )
-        )
-        feeder_hostname = hub["ui_name"]
-        feeder_api = NovaApi(
-            api_user="admin",
-            api_password=feeder_credentials,
-            cert_path=CERT_PATH,
-            hostname=feeder_hostname,
-        )
-
-        logger.info("Creating fr_distributed_cleanup role on %s", feeder_hostname)
-        response = feeder_api.put(
-            "role",
-            "fr_distributed_cleanup",
-            {
-                "description": "fr_distributed_cleanup Federated Host Cleanup role",
-                "includeContext": "cfengine",
-            },
-        )
-        if response["status"] != 201:
-            print(
-                "Problem creating fr_distributed_cleanup role on superhub. {}".format(
-                    response
-                )
-            )
-            sys.exit(1)
-        response = feeder_api.put_role_permissions(
-            "fr_distributed_cleanup", ["host.delete"]
-        )
-        if response["status"] != 201:
-            print("Unable to set RBAC permissions on role fr_distributed_cleanup")
-            sys.exit(1)
-        logger.info("Creating fr_distributed_cleanup user on %s", feeder_hostname)
-        response = feeder_api.put(
-            "user",
-            "fr_distributed_cleanup",
-            {
-                "description": "fr_distributed_cleanup Federated Host Cleanup user",
-                "email": "{}".format(email),
-                "password": "{}".format(fr_distributed_cleanup_password),
-                "roles": ["fr_distributed_cleanup"],
-            },
-        )
-        if response["status"] != 201:
-            print(
-                "Problem creating fr_distributed_cleanup user on {}. {}".format(
-                    feeder_hostname, response
-                )
-            )
-            sys.exit(1)
+        interactive_setup_feeder(hub, email, fr_distributed_cleanup_password, force_interactive=force_interactive)
         write_secret(DISTRIBUTED_CLEANUP_SECRET_PATH, fr_distributed_cleanup_password)
 
 
@@ -206,6 +226,8 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--debug", action="store_true")
     group.add_argument("--inform", action="store_true")
+
+    parser.add_argument("--force-interactive", action="store_true", help="force interactive mode even when no tty, good for automation")
     args = parser.parse_args()
 
     global logger
@@ -220,8 +242,8 @@ def main():
     logger.addHandler(ch)
 
     if not os.path.exists(DISTRIBUTED_CLEANUP_SECRET_PATH):
-        if sys.stdout.isatty():
-            interactive_setup()
+        if sys.stdout.isatty() or args.force_interactive:
+            interactive_setup(force_interactive=args.force_interactive)
         else:
             print(
                 "{} requires manual setup, please run as root interactively.".format(
@@ -241,9 +263,8 @@ def main():
         and response["configured"]
     ):
         print(
-            "{} can only be run on a Federated Reporting hub configured to be superhub".format(
-                os.path.basename(__file__)
-            )
+            "{} can only be run on a properly configured superhub. ".format(os.path.basename(__file__)) +
+            " {}".format(response)
         )
         sys.exit(1)
 
@@ -266,7 +287,16 @@ def main():
             hostname=feeder_hostname,
         )
         response = feeder_api.status()
-        if response["status"] != 200:
+        if response["status"] == 401 and sys.stdout.isatty():
+            # auth error when running interactively
+            # assume it's a new feeder and offer to set it up interactively
+            hub_user = api.get( "user", "fr_distributed_cleanup")
+            if hub_user is None or 'email' not in hub_user:
+                email = 'fr_distributed_cleanup@{}'.format(hub['ui_name'])
+            else:
+                email = hub_user['email']
+            interactive_setup_feeder(hub, email, fr_distributed_cleanup_password)
+        elif response["status"] != 200:
             print(
                 "Unable to get status for feeder {}. Skipping".format(feeder_hostname)
             )
@@ -355,11 +385,13 @@ AND EXISTS(
         # simulate the host api delete process by setting current_timestamp in deleted column
         # and delete from all federated tables similar to the clear_hosts_references() pgplsql function.
         post_sql += "INSERT INTO __hosts (hostkey,deleted) VALUES"
+        deletes = []
         for hostkey in post_hostkeys:
-            delete_sql += "('{}', CURRENT_TIMESTAMP) ".format(hostkey)
+            deletes.append("('{}', CURRENT_TIMESTAMP)".format(hostkey))
 
+        delete_sql = ", ".join(deletes)
         delete_sql += (
-            "ON CONFLICT (hostkey,hub_id) DO UPDATE SET deleted = excluded.deleted;\n"
+            " ON CONFLICT (hostkey,hub_id) DO UPDATE SET deleted = excluded.deleted;\n"
         )
         clear_sql = "set schema 'public';\n"
         for table in CFE_FR_TABLES:

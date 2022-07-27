@@ -46,6 +46,7 @@ tests/unit/test_package_module_yum.log
 
 # Atom-IDE
 .ropeproject
+build
 
 # emacs
 *~

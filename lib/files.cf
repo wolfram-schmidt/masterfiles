@@ -768,10 +768,25 @@ bundle edit_line set_line_based(v, sep, bp, kp, cp)
 
 
   classes:
+      # 3.21.0 and greater know about a file being emptied before editing and
+      # skip this check since it does not make sense.
+@if minimum_version(3.21)
       # Check to see if this line exists
       "exists_$(ci[$(i)])"
       expression => regline("^\s*($(i)$(bp).*|$(i))$",
-                            $(edit.filename));
+                            $(edit.filename)),
+      unless => strcmp( "true", $(edit.empty_before_use) );
+@endif
+
+    (cfengine_3_15|cfengine_3_16|cfengine_3_17|cfengine_3_18|cfengine_3_19|cfengine_3_20)::
+      # Version 3.15.0 does not know about the before_version macro, so we keep the same behavior
+      # TODO Remove after 3.21 is no longer supported. (3.15.0 was supported when 3.21 was released)
+      # Check to see if this line exists
+      "exists_$(ci[$(i)])"
+        expression => regline("^\s*($(i)$(bp).*|$(i))$",
+                              $(edit.filename));
+
+    any::
 
       # if there's more than one comment, just add new (don't know who to use)
       "multiple_comments_$(ci[$(i)])"
@@ -1937,6 +1952,13 @@ body file_select exclude(name)
 
 ##
 
+body file_select not_dir
+# @brief Select all files that are not directories
+{
+      file_types => { "dir" };
+      file_result => "!file_types";
+}
+
 body file_select plain
 # @brief Select plain, regular files
 {
@@ -1967,7 +1989,7 @@ body file_select ex_list(names)
 # @brief Select all files except those that match `names`
 # @param names A list of regular expressions
 {
-      leaf_name  => { @(names)};
+      leaf_name  => { @(names) };
       file_result => "!leaf_name";
 }
 
