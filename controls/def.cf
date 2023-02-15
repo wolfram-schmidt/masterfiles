@@ -37,6 +37,10 @@ bundle common def
         string => "localhost",
         if => not(isvariable("smtpserver"));
 
+      "control_executor_mailmaxlines" -> { "ENT-9614" }
+        int => "30",
+        if => not( isvariable( "control_executor_mailmaxlines" ));
+
       # List here the IP masks that we grant access to on the server
 
       "acl"
@@ -511,7 +515,7 @@ bundle common def
       "_have_control_agent_files_single_copy" -> { "CFE-3622"}
         expression => isvariable( "def.control_agent_files_single_copy" );
       "_have_control_executor_runagent_socket_allow_users"
-        expression => isvariable( "def.control_executor_runagent_socket_allow_users" );
+        expression => some( ".+", "def.control_executor_runagent_socket_allow_users" );
 
       "cfengine_recommendations_enabled"
         expression => "!cfengine_recommendations_disabled";
