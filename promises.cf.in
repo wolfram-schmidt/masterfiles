@@ -421,6 +421,7 @@ bundle common hs
                           "hs_policies/mount.cf",
                           "hs_policies/mysql.cf",
                           "hs_policies/status.cf",
+                          "hs_policies/thorlite.cf",
                           "hs_policies/users.cf", 
                           "hs_policies/web.cf",
                           "hs_policies/zabbix.cf", };
@@ -454,13 +455,17 @@ bundle common hs
                            # Misc
                            "backup",
                            "cron",
+                           "configure_mdns4",
                            "cups",
                            "command_not_found",
                            "disable_sleep",
+                           "disable_anacron", # on servers
                            "fix_locale",
                            "imagemagick",
                            "lofarcam",
+                           "poweroff_idle",
                            "snapfix",
+                           "thorlite",
                            "timesyncd",
                            "zabbix",
                           };
