@@ -37,13 +37,8 @@ bundle common package_module_knowledge
     slackware::
       "platform_default" string => "slackpkg";
 
-      # CFEngine 3.12.2+ and 3.14+ have new package module on Windows
-    windows.cfengine_3_12.!(cfengine_3_12_0|cfengine_3_12_1)::
-      "platform_default" string => "msiexec";
-@if minimum_version(3.14)
     windows::
       "platform_default" string => "msiexec";
-@endif
 
     alpinelinux::
       "platform_default" string => "apk";
@@ -210,7 +205,15 @@ bundle common common_knowledge
 # This common bundle defines general things about platforms.
 {
   vars:
-      "list_update_ifelapsed" string => "240";
+
+      # This variable can be customized via augments:
+      # { "variables": { "default:common_knowledge.list_update_ifelapsed": { "value": "0" } } }
+      "list_update_ifelapsed"
+        string => "240",
+        if => not( isvariable( "list_update_ifelapsed" )),
+        comment => concat( "The number of minutes to wait before updating the",
+                           " package cache. Note this controls both the software",
+                           " installed and the software updates available.");
 }
 
 bundle common debian_knowledge
