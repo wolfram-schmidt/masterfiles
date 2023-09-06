@@ -239,6 +239,55 @@ manage High Availability of Enterprise Hubs is enabled.
 
 **Note:** This class is **not** defined by default.
 
+### Disable plain http for CFEngine Enterprise Mission Portal
+
+By default Mission Portal listens for HTTP requests on port 80, redirecting to HTTPS on port 443. To prevent the web server from listening on port 80 at all define `default:cfe_cfengine_enterprise_disable_plain_http`.
+
+**For example:**
+
+```json
+{
+  "classes": {
+    "default:cfe_enterprise_disable_plain_http": {
+      "class_expressions": [ "am_policy_hub|policy_server::" ]
+    }
+  }
+}
+```
+
+**Notes:**
+
+- If this class (`default:cfe_enterprise_disable_http_redirect_to_https`) is defined the class `default:cfe_enterprise_disable_plain_http` is defined is automatically defined.
+
+**History:**
+
+- Added in CFEngine 3.23.0
+
+### Disable plain http redirect to https for CFEngine Enterprise Mission Portal
+
+By default Mission Portal listens for HTTP requests on port 80, redirecting to HTTPS on port 443. To prevent redirection of requests on HTTP to HTTPS define `default:cfe_enterprise_disable_http_redirect_to_https`.
+
+**For example:**
+
+```json
+{
+  "classes": {
+    "default:cfe_enterprise_disable_http_redirect_to_https": {
+      "class_expressions": [ "(am_policy_hub|policy_server).test_server::" ]
+    }
+  }
+}
+```
+
+**Notes:**
+
+- If `default:cfe_enterprise_disable_plain_http` is defined, this class (`default:cfe_enterprise_disable_http_redirect_to_https`) is automatically defined.
+
+**History:**
+
+- Added in CFEngine 3.6.0
+- Class renamed from `cfe_cfengine_enterprise_enable_plain_http` to `cfe_enterprise_disable_http_redirect_to_https` in CFEngine 3.23.0
+
 ### Disable cf\_promises\_validated check
 
 For non policy hubs the default update policy only performs a full scan of
@@ -407,7 +456,7 @@ For example:
 
 - Introduced 3.19.0, 3.18.1
 
-### Files considered for copy during policy updates
+### Override files considered for copy during policy updates
 
 The default update policy only copies files that match regular expressions
 listed in ```def.input_name_patterns```.
@@ -432,6 +481,35 @@ bootstrap the
 embedded
 [failsafe policy](https://github.com/cfengine/core/blob/master/libpromises/failsafe.cf) is
 used and it decides which files should be copied.
+
+### Extend files considered for copy during policy updates
+
+The default update policy only copies files that match regular expressions
+listed in `default:def.input_name_patterns`. The variable
+`default:update_def.input_name_patterns` allows the definition of additional
+filename patterns without having to maintain the full set of defaults.
+
+This [augments file][Augments] additionally ensures that files ending in
+`.tpl`, `.md`, and `.org` are also copied.
+
+```json
+{
+    "variables": {
+        "default:update_def.input_name_patterns_extra": {
+          "value": [ ".*\\.tpl", ".*\\.md", ".*\\.org" ],
+          "comment": "We use classic CFEngine templates suffixed with .tpl so they should be copied along with documentation."
+        }
+    }
+}
+```
+
+**Note:** This filter does **not** apply to bootstrap operations. During
+bootstrap the embedded
+[failsafe policy](https://github.com/cfengine/core/blob/master/libpromises/failsafe.cf)
+is used and it decides which files should be copied.
+
+**History:**
+  - Introduced in CFEngine 3.23.0
 
 ### Configuring component management
 
@@ -794,6 +872,27 @@ This example illustrates enabling the option via augments.
 **History:**
 
 - Introduced in 3.12.0
+
+### lastseenexpireafter
+
+This option configures the number of minutes after which last-seen entries in
+`cf_lastseen.lmdb` are purged. If not specified, the MPF defaults to the binary
+default of 1 week (`10080` minutes).
+
+```json
+{
+  "variables": {
+    "default:def.control_common_ignore_missing_inputs": {
+      "value": "30240",
+      "comment": "We want to retain history of hosts in the last-seen database for 21 days"
+    }
+  }
+}
+```
+
+**History:**
+
+- Introduced in 3.23.0
 
 ### trustkeysfrom
 
@@ -1457,6 +1556,24 @@ Primarily for developer conveniance, this setting allows you to easily disable t
 }
 ```
 
+### Configure Enterprise Mission Portal Apache SSLProtocol
+
+This directive can be used to control which versions of the SSL/TLS protocol will be accepted in new connections.
+
+```json
+{
+  "variables": {
+    "default:def.cfe_enterprise_mission_portal_apache_sslprotocol": {
+      "value": "-SSLv3 -TLSv1 -TLSv1.1 -TLSv1.2 +TLSv1.3"
+    }
+  }
+}
+```
+
+**History:**
+
+- Added in CFEngine 3.23.0
+
 ### Bundlesequence
 
 #### Classification bundles before autorun
@@ -1603,7 +1720,49 @@ For example:
 }
 ```
 
-**History**: Added in 3.10.1
+**Notes:**
+
+- This applies to `promises.cf`.
+
+
+**History:**
+
+- Introduced in CFEngine 3.10.1
+
+### Configure default repository for file backups during policy update
+
+By default the agent creates a backup of a file before it is edited in the same
+directory as the edited file. This happens during policy update but the backup
+files are culled by default as part of the default sync behavior.
+
+Defining the `default:mpf_update_control_agent_default_repository` class will
+cause these backups to be placed in `$(sys.workdir)/backups`. Customize the
+backup directory by setting `default:update_def.control_agent_default_backup`.
+
+For example:
+
+```
+{
+  "classes": {
+    "default:mpf_update_control_agent_default_repository": {
+      "class_expressions": [ "any::" ]
+    }
+  },
+  "variables": {
+    "default:update_def.control_agent_default_repository": {
+      "value": "/var/cfengine/policy-update-backups"
+    }
+  }
+}
+```
+
+**Notes:**
+
+- This applies to `update.cf`.
+
+**History:**
+
+- Introduced in CFEngine 3.23.0
 
 ### Configure periodic package inventory refresh interval
 

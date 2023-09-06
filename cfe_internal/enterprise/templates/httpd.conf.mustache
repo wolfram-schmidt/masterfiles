@@ -5,7 +5,11 @@ ServerSignature Off
 ServerTokens ProductOnly
 ServerName {{{vars.sys.fqhost}}}
 ServerRoot "{{{vars.sys.workdir}}}/httpd"
+{{#classes.cfe_enterprise_disable_plain_http}}
+# ENT-10411
 Listen 80
+{{/classes.cfe_enterprise_disable_plain_http}}
+
 PidFile "{{{vars.mission_portal_apache_from_stage.httpd_pid_file}}}"
 
 # Modules
@@ -168,8 +172,8 @@ LogLevel warn
   # A more secure setting might be:
   # SSLCipherSuite EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH
 
-  # Some versions of SSL and TLS are known to be insecure, so we disable them by default
-  SSLProtocol all -SSLv2 -SSLv3 -TLSv1
+  # The SSL protocol versions allowed
+  SSLProtocol {{{vars.def.cfe_enterprise_mission_portal_apache_sslprotocol}}}
 
   SSLRandomSeed startup builtin
   SSLRandomSeed connect builtin
@@ -230,11 +234,11 @@ AddType    application/x-httpd-php-source php{{{vars.cfe_internal_hub_vars.php_v
   <IfModule rewrite_module>
     RewriteEngine On
 
-    {{^classes.cfe_enterprise_enable_plain_http}}
+    {{^classes.cfe_enterprise_disable_http_redirect_to_https}}
     # Force https with redirection
     RewriteCond %{HTTPS} off
     RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
-    {{/classes.cfe_enterprise_enable_plain_http}}
+    {{/classes.cfe_enterprise_disable_http_redirect_to_https}}
 
     {{#classes.mission_portal_index_php_redirect_enabled}}
     # redirect from `index.php/path` to `/path`

@@ -246,6 +246,12 @@ bundle common def
                           "true",
                           "false");
 
+      "control_common_lastseenexpireafter" -> { "ENT-10414" }
+        string => "10080", # 10080 minutes is 1 week
+        if => not( isvariable( "default:def.control_common_lastseenexpireafter") ),
+        comment => concat( "Since lastseenexpireafter is not defined, we default to",
+                           " the binary default of 10080 minutes (1 week)" );
+
       # Agent controls
 @if minimum_version(3.18.0)
       # TODO When 3.18 is the oldest supported LTS, redact this macro and associated protections
@@ -412,6 +418,15 @@ bundle common def
         vars.dir_master_software_updates. All remote agents request this path
         via the master_software_updates shortcut.",
         if => not( isvariable( "def.dir_master_software_updates" ));
+
+    enterprise_edition.(policy_server|am_policy_hub)::
+      # Only enterprise hubs have Mission Portal
+
+      "cfe_enterprise_mission_portal_apache_sslprotocol" -> { "ENT-10412" }
+        string => "all -SSLv2 -SSLv3 -TLSv1", # We disable some versions of SSL
+                                              # as they are known to be insecure
+        if => not( isvariable( "default:def.cfe_enterprise_mission_portal_apache_sslprotocol" ) ),
+        comment => "The SSL protocol versions that are allowed by Apache for Mission Portal";
 
     solaris::
       "cf_runagent_shell"
@@ -675,6 +690,21 @@ bundle common def
 
       # Enable paths to POSIX tools instead of native tools when possible.
       "mpf_stdlib_use_posix_utils" expression => "any";
+
+    enterprise_edition.(policy_server|am_policy_hub)::
+      "cfe_enterprise_disable_http_redirect_to_https"
+        scope => "namespace",
+        expression => "cfe_cfengine_enterprise_enable_plain_http";
+
+      "cfe_enterprise_disable_http_redirect_to_https"
+        expression => "cfe_enterprise_disable_plain_http",
+        comment => "If plain http is disabled, it makes no sense to redirect to it, so we disable that as well.";
+
+  reports:
+      "Warning: the 'cfe_cfengine_enterprise_enable_plain_http' class has been deprecated in favor of 'cfe_enterprise_disable_http_redirect_to_https', please adjust accordingly. The  'cfe_enterprise_disable_http_redirect_to_https' class has been set automatically."
+        if => "cfe_enterprise_disable_http_redirect_to_https.cfe_cfengine_enterprise_enable_plain_http";
+      "Warning: the 'cfe_cfengine_enterprise_enable_plain_http' class has been deprecated in favor of 'cfe_enterprise_disable_http_redirect_to_https', please adjust accordingly."
+        if => "cfe_cfengine_enterprise_enable_plain_http.!cfe_enterprise_disable_http_redirect_to_https";
 
 }
 

@@ -66,6 +66,11 @@ bundle common update_def
                            not(isvariable("input_name_patterns"))),
         meta => { "defvar" };
 
+      "input_name_patterns_extra" -> { "ENT-10480" }
+        slist => {},
+        comment => "Additional filename patterns to copy during policy update.",
+        if => not( isvariable( "input_name_patterns_extra" ) );
+
       # the permissions for your masterfiles files (not dirs), which will propagate to inputs
       "masterfiles_perms_mode_not_dir" -> { "CFE-951" }
         string => "0600",
@@ -119,6 +124,15 @@ bundle common update_def
 
     # enable_cfengine_enterprise_hub_ha is defined below
     # Disabled by default
+
+      # If we want to use the backup repository for update (because the class is
+      # defined) and if the location is not already configured (via Augments),
+      # set a default.
+
+      "control_agent_default_repository" -> { "ENT-10481" }
+        string => "$(sys.workdir)/backups",
+        if => and( "mpf_update_control_agent_default_repository",
+                   not( isvariable( "control_agent_default_repository" ) ) );
 
     enable_cfengine_enterprise_hub_ha::
       "standby_servers" slist => filter("$(sys.policy_hub)", "ha_def.ips", false, true, 10);
