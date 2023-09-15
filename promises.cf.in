@@ -453,6 +453,7 @@ bundle common hs
 
                            # Misc
                            "backup",
+			   "banner",
                            "cron",
                            "configure_mdns4",
                            "cups",
