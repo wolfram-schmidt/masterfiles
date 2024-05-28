@@ -792,25 +792,94 @@ allowed values (`LOG_USER`, `LOG_DAEMON`, `LOG_LOCAL0`, `LOG_LOCAL1`,
 
 ### mailto
 
-The address that `cf-execd` should email agent output to.
+The address that `cf-execd` should email agent output to. Defaults to `root@$(default:def.domain)`.
+
+This setting can be customized via Augments, for example:
+
+```json
+{
+  "variables": {
+    "default:def.mailto": {
+        "value": "cfengine-maintainers@example.com",
+        "comment": "When output differs from the prior execution cf-execd will deliver the output to this Email address for review."
+    }
+  }
+}
+```
 
 ### mailfrom
 
-The address that output mailed from `cf-execd` should come from.
+The address that output mailed from `cf-execd` should come from. Defaults to `root@$(sys.uqhost).$(def.domain)`.
+
+This setting can be customized via Augments, for example:
+
+```json
+{
+  "variables": {
+    "default:def.mailfrom": {
+        "value": "cfengine@example.com",
+        "comment": "Email sent from cf-execd should come from this address."
+    }
+  }
+}
+```
 
 ### smtpserver
 
-The SMTP server that `cf-execd` should use to send emails.
+The SMTP server that `cf-execd` should use to send emails. Defaults to `localhost`.
+
+This setting can be customized via Augments, for example:
+
+```json
+{
+  "variables": {
+    "default:def.smtpserver": {
+        "value": "smtp.example.com",
+        "comment": "The smtp server that should be used when sending email from cf-execd."
+    }
+  }
+}
+```
 
 ### mailmaxlines
 
-The maximumm number of lines of output that `cf-execd` will email.
+The maximum number of lines of output that `cf-execd` will email. Defaults to `30`.
+
+This setting can be customized via Augments, for example:
+
+```json
+{
+  "variables": {
+    "default:def.mailmaxlines": {
+        "value": "50",
+        "comment": "The maximum number of lines cf-execd should email."
+    }
+  }
+}
+```
+
+**See also:** [`mailmaxlines`][cf-execd#mailmaxlines]
+
+### domain
+
+The domain the host is configured for. Defaults to domain configured on system, e.g. the output from ```hostname -d```. This setting influences `sys.domain` and `mailfrom` if not customized.
+
+This setting can be customized via Augments, for example:
+
+```json
+{
+    "variables": {
+        "default:def.domain": {
+            "comment": "Override domain as configured on the host.",
+            "value": "exmaple.net"
+        }
+    }
+}
+```
 
 **History:**
 
 * Added in CFEngine 3.22.0, 3.21.1, 3.18.4
-
-**See also:** [`mailmaxlines`][cf-execd#mailmaxlines]
 
 ### Configure subject for emails sent by cf-execd
 
@@ -871,6 +940,27 @@ control` are stripped before sending. The MPF will use the value of
 **History:**
 
 * Added in 3.22.0, 3.21.2
+
+### Configure maximum number of lines of output in emails sent by cf-execd
+
+When enabled `cf-execd` emails output that differs from previous executions.
+The number of lines from the output sent via email can be configured by setting
+`mailmaxlines` in `body executor control`. Setting it to `0` disables sending emails.
+The MPF will use the value of `default:def.control_executor_mailmaxlines`.
+
+```json
+{
+  "variables": {
+    "default:def.control_executor_mailmaxlines": {
+        "value": 0
+    }
+  }
+}
+```
+
+**History:**
+
+* Added in 3.22.0, 3.21.2, 3.18.5
 
 ### acl
 
@@ -2097,7 +2187,7 @@ The MPF specifies the package module to use for managing packages and collecting
 
 **History:**
 
-* Added in CFEngine 3.24.0
+* Added in CFEngine 3.24.0, 3.21.5, 3.18.8
 
 ### Configure additional package managers to inventory by default
 
@@ -2120,7 +2210,7 @@ The MPF inventories software for the default package module in use. Define `defa
 
 **History:**
 
-* Added in CFEngine 3.24.0
+* Added in CFEngine 3.24.0, 3.21.5, 3.18.8
 
 ### Configure periodic package inventory refresh interval
 
@@ -2539,12 +2629,12 @@ Maximum time between automatic WAL checkpoints. If this value is specified witho
 ## Recommendations
 
 The MPF includes policy that inspects the system and makes recommendations about
-the configuration of the system. When `cfengine_recommendations_enabled` is
-defined bundles tagged `cfengine_recommendation` are executed in lexical order.
-`cfengine_recommendations_enabled` is defined by default when
-`cfengine_recommendations_disabled` is **not** defined.
+the configuration of the system. When `default:cfengine_recommendations_enabled` is
+defined bundles tagged `cfengine_recommends` are executed in lexical order.
+`default:cfengine_recommendations_enabled` is defined by default when
+`default:cfengine_recommendations_disabled` is **not** defined.
 
-To disable cfengine recommendations define `cfengine_recommendations_disabled`.
+To disable cfengine recommendations define `default:cfengine_recommendations_disabled`.
 
 This snippet disables recommendations via augments.
 
