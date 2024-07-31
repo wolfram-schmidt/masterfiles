@@ -7,7 +7,10 @@ ServerName {{{vars.sys.fqhost}}}
 ServerRoot "{{{vars.sys.workdir}}}/httpd"
 {{^classes.cfe_enterprise_disable_plain_http}}
 # ENT-10411
-Listen 80
+# ENT-10646 - Listen 80 often causes IPv6 related errors, specifying ipv4 squashes them.
+#   Unclear why the same is not an issue for 443
+#   To enable listening on ipv6 add Listen [::]:80
+Listen 0.0.0.0:80
 {{/classes.cfe_enterprise_disable_plain_http}}
 
 PidFile "{{{vars.mission_portal_apache_from_stage.httpd_pid_file}}}"
@@ -194,7 +197,7 @@ LogLevel warn
     SSLEngine on
     SSLCertificateFile "{{{vars.cfe_internal_hub_vars.SSLCertificateFile}}}"
     SSLCertificateKeyFile "{{{vars.cfe_internal_hub_vars.SSLCertificateKeyFile}}}"
-{{^classes.cfe_enterprise_have_SSLCACertificateFile_defined}}
+{{#classes.cfe_enterprise_have_SSLCACertificateFile_defined}}
     SSLCACertificateFile "{{{vars.cfe_internal_hub_vars.SSLCACertificateFile}}}"
 {{/classes.cfe_enterprise_have_SSLCACertificateFile_defined}}
 
@@ -203,6 +206,23 @@ LogLevel warn
     Header always set Strict-Transport-Security "max-age=63072000; includeSubdomains; preload"
     Header always set X-Frame-Options DENY
     Header always set X-Content-Type-Options nosniff
+
+    Header always set Content-Security-Policy \
+    "frame-ancestors 'self'; \
+    default-src 'self'; \
+    script-src 'self' 'unsafe-inline'; \
+    style-src 'self' 'unsafe-inline' fonts.googleapis.com; \
+    object-src 'none'; \
+    frame-src 'self'; \
+    child-src 'self'; \
+    img-src 'self' avatars.githubusercontent.com badges.gitter.im fonts.gstatic.com kiwiirc.com raw.githubusercontent.com; \
+    font-src 'self' data: fonts.googleapis.com fonts.gstatic.com; \
+    connect-src 'self' fonts.gstatic.com fonts.googleapis.com; \
+    manifest-src 'self'; \
+    base-uri 'self'; \
+    form-action 'self'; \
+    media-src 'self'; \
+    worker-src 'self';"
 
     <FilesMatch "\.(cgi|shtml|phtml|php)$">
         SSLOptions +StdEnvVars

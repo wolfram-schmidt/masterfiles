@@ -591,10 +591,6 @@ bundle agent federation_manage_files
         copy_from => default:local_dcp( "$(this.promise_dirname)/../../../templates/federated_reporting/dump.sh" ),
         perms => default:mog( "700", "root", "root" );
 
-      "$(cfengine_enterprise_federation:config.federation_dir)/fedhub/dump/filters/50-merge_inserts.awk"
-        copy_from => default:local_dcp( "$(this.promise_dirname)/../../../templates/federated_reporting/50-merge_inserts.awk" ),
-        perms => default:mog( "600", "root", "root" );
-
     am_transporter::
       "$(cfengine_enterprise_federation:config.bin_dir)/transport.sh" -> { "CFE-951" }
         copy_from => default:local_dcp( "$(this.promise_dirname)/../../../templates/federated_reporting/transport.sh" ),
@@ -706,20 +702,28 @@ body contain cfpostgres_user
 
 bundle agent exported_data
 # @brief Run script to dump pg data on feeder hub
+# @note Since version 3.24.0, the inventory view is automatically refreshed by
+# cf-reactor whenever inventory is updated. Hence, you can assume that the
+# inventory is refreshed. However, there is one exception; if the previous
+# refresh happened too recently, the following one will be delayed.
 {
+@if before_version(3.24.0)
   methods:
     am_feeder.!am_paused::
       "Refresh Inventory"
         usebundle => "default:cfe_internal_refresh_inventory_view",
         handle => "fr_inventory_refresh",
         comment => "Use standard inventory refresh so that we don't run it twice";
+@endif
 
   commands:
     am_feeder.!am_paused::
       "/bin/bash"
         arglist => {"$(cfengine_enterprise_federation:config.bin_dir)/dump.sh"},
         contain => default:in_shell,
+@if before_version(3.24.0)
         depends_on => { "fr_inventory_refresh" },
+@endif
         comment => "Refresh Inventory must be completed before dumping data";
 }
 
