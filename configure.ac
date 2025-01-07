@@ -244,6 +244,7 @@ AC_CONFIG_FILES([Makefile
                 controls/update_def.cf
                 update.cf
                 promises.cf
+		def.json
                 standalone_self_upgrade.cf
                 tests/Makefile
                 tests/acceptance/Makefile
