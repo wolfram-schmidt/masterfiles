@@ -1,7 +1,0 @@
-{
-    "vars": {
-        "mailto": "sysadmin.hs@uni-hamburg.de",
-	"control_agent_environment_vars_extra": ["IGNORE_VERSION_CHECK=yes"]
-     }
-}
-
