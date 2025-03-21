@@ -42,6 +42,13 @@ bundle common def_standalone_self_upgrade
         comment => concat( "If default:def.control_common_tls_ciphers is defined then",
                            " its value will be used for the set of tls ciphers allowed",
                            " for outbound connections. Else the binary default will be used.");
+
+      "control_common_system_log_level_defined" -> { "CFE-4452" }
+        expression => isvariable( "default:def.control_common_system_log_level" ),
+        comment => concat( "The minimum log level required for log messages to go to the",
+                           " system log (e.g. syslog or Windows Event Log).",
+                           " (critical|error|warning|notice|info)" );
+
 }
 body agent control
 # @brief Agent controls for standalone self upgrade
@@ -263,7 +270,7 @@ bundle agent cfengine_software_cached_locally
       # NOTE This is pegged to the single upstream policy hub, it won't fail
       # over to a secondary for copying the binarys to update.
 
-      "$(local_software_dir)"
+      "$(local_software_dir)/."
         comment => "Copy binary updates from master source on policy server",
         handle => "cfe_internal_update_bins_files_pkg_copy",
         copy_from => u_dsync( "$(master_software_location)/$(package_dir)", $(sys.policy_hub) ),
@@ -874,6 +881,9 @@ body common control
 
     (debian|redhat)::
       package_module => $(package_module_knowledge.platform_default);
+
+    control_common_system_log_level_defined::
+        system_log_level => "$(default:def.control_common_system_log_level)";
 }
 
 body depth_search u_recurse_basedir(d)
