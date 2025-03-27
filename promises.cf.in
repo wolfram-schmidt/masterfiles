@@ -478,6 +478,7 @@ bundle common hs
                            "fix_locale",
                            "imagemagick",
                            "lofarcam",
+                           "postfix_non_server",
                            "poweroff_idle",
                            "snapfix",
                            "thorlite",
