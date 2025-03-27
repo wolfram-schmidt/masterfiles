@@ -40,6 +40,14 @@ bundle common cfe_internal_hub_vars
 
     policy_server::
 
+      "http_port" -> { "ENT-12151" }
+        string => ifelse( isvariable("cfe_internal_hub_vars.http_port"), "$(cfe_internal_hub_vars.http_port)", "80" ),
+        comment => "Mission portal's webserver HTTP port. Default 80";
+
+      "https_port" -> { "ENT-12151" }
+        string => ifelse( isvariable("cfe_internal_hub_vars.https_port"), "$(cfe_internal_hub_vars.https_port)", "443" ),
+        comment => "Mission portal's webserver HTTPS port. Default 443";
+
       "docroot" string => "$(sys.workdir)/httpd/htdocs",
         comment => "Root directory of Enterprise Web interface",
         handle => "cfe_internal_hub_vars_docroot";
@@ -74,9 +82,12 @@ bundle common cfe_internal_hub_vars
 
       # Determine the version of PHP that is used
       # TODO Drop this after 3.18 is no longer supported. It's used for Mission Portals httpd configuration.
+      # ENT-11440 enabled http/2 which switched from libphp.so apache module to php-fpm.
+      # httpd.conf doesn't use php_version when http/2 is enabled.
 
       "php_version" -> { "ENT-7039" }
         string => ifelse(
+                          fileexists( "$(sys.workdir)/httpd/php/sbin/php-fpm" ), "", # ENT-11440, http/2 in httpd.conf doesn't need php_version
                           fileexists( "$(sys.workdir)/httpd/modules/libphp.so" ), "", # ENT-7039 php 8+
                           fileexists( "$(sys.workdir)/httpd/modules/libphp7.so" ), "7",
                           fileexists( "$(sys.workdir)/httpd/modules/libphp5.so" ), "5",
@@ -89,6 +100,47 @@ bundle common cfe_internal_hub_vars
       "ERROR: $(this.bundle): Unable to determine correct PHP version."
         if => strcmp( $(php_version), "UNKNOWN" );
 
+}
+
+##################################################################
+#
+# update_cli_rest_server_url_config
+#  - updates REST server URL port of Mission Portal WebGUI when
+#    cfe_internal_hub_vars.https_port is changed
+#
+##################################################################
+bundle agent update_cli_rest_server_url_config
+{
+  vars:
+    # Both share and live versions must be changed at once since httpd will be restarted later in the same agent run.
+    "mp_config_file" string => "$(cfe_internal_hub_vars.docroot)/application/config/config.php";
+    "mp_share_config_file" string => "$(sys.workdir)/share/GUI/application/config/config.php";
+    "regex_test_pattern" string => ".*localhost:$(cfe_internal_hub_vars.https_port).*";
+
+  files:
+    !mpf_disable_mission_portal_docroot_sync_from_share_gui::
+      "$(mp_share_config_file)"
+         edit_line => change_cli_rest_server_url_port,
+         if => and(
+           fileexists("$(mp_share_config_file)"),
+           islessthan(countlinesmatching("$(regex_test_pattern)", "$(mp_share_config_file)"), 1)
+           );
+
+    any::
+      "$(mp_config_file)"
+        edit_line => change_cli_rest_server_url_port,
+        if => and(
+          fileexists("$(mp_config_file)"),
+          islessthan(countlinesmatching("$(regex_test_pattern)", "$(mp_config_file)"), 1)
+          );
+}
+
+bundle edit_line change_cli_rest_server_url_port
+{
+  replace_patterns:
+  "^\s*\$config\['cli_rest_server_url'\]\s*=\s*\"https://localhost(?::(?!$(cfe_internal_hub_vars.https_port))\d{1,5})?/api/\";\s*$"
+      replace_with => value("    $config['cli_rest_server_url'] = \"https://localhost:$(cfe_internal_hub_vars.https_port)/api/\";"),
+      comment => "Change port CLI REST server URL port";
 }
 
 ##################################################################

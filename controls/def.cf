@@ -122,7 +122,7 @@ bundle common def
     any::
 
       "control_server_allowallconnects" -> { "ENT-10212" }
-        slist => { "127.0.0.1" , "::1", @(def.acl) },
+        slist => {},
         if => not( isvariable( "control_server_allowallconnects" ) ),
         comment => concat( "We want to define the default setting for",
                            " allowallconnects in body server control if not",
@@ -275,6 +275,8 @@ bundle common def
         int => "30",
         if => not( isvariable( "control_agent_maxconnections" ) );
 
+      # Common Controls
+
       # Because in some versions of cfengine bundlesequence in body common
       # control does not support does not support iteration over data containers
       # we must first pick out the bundles into a shallow container that we can
@@ -392,6 +394,11 @@ bundle common def
                            " it's value will be used for allowtlsversion in body server",
                            " control. Else the binary default will be used.");
 
+      "control_common_system_log_level_defined" -> { "CFE-4452" }
+        expression => isvariable( "default:def.control_common_system_log_level" ),
+        comment => concat( "The minimum log level required for log messages to go to the",
+                           " system log (e.g. syslog or Windows Event Log).",
+                           " (critical|error|warning|notice|info)" );
   vars:
 
     debian::
@@ -558,7 +565,8 @@ bundle common def
       "log_dir[package_logs]" string => "$(const.dirsep)cfengine_package_logs";
 
     enterprise.am_policy_hub::
-      "log_dir[application]" string => "$(sys.workdir)/httpd/htdocs/application/logs";
+      "log_dir[mission_portal]" string => "$(sys.workdir)/httpd/logs";
+      "log_dir[application]" string => "$(sys.workdir)/httpd/logs/application";
 
     any::
       "cfe_log_dirs" slist => getvalues( log_dir );

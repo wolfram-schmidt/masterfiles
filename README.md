@@ -1,5 +1,6 @@
 Looking for help?
-[![Gitter chat](https://badges.gitter.im/cfengine/core.png)](https://gitter.im/cfengine/core) | [![IRC channel](https://kiwiirc.com/buttons/irc.cfengine.com/cfengine.png)](https://web.libera.chat?channel=#cfengine)
+* [Chat with us in #CFEngine:matrix.org](https://matrix.to/#/#CFEngine:matrix.org).
+* Ask questions on [Github Discussions](https://github.com/cfengine/core/discussions/) or the mailing list [help-cfengine@googlegroups.com](https://groups.google.com/g/help-cfengine).
 
 # CFEngine 3 masterfiles
 
@@ -8,7 +9,7 @@ function is to provide automated configuration and maintenance of large-scale
 computer systems.
 
 The MPF or Masterfiles Policy Framework is intended to provide a stable base
-policy installations and upgrades, and is used by both CFEngine Enterprise and
+policy for installations and upgrades, and is used by both CFEngine Enterprise and
 CFEngine community in versions 3.6 and newer.
 The
 [documentation for the MPF](https://docs.cfengine.com/docs/master/reference-masterfiles-policy-framework.html) is
