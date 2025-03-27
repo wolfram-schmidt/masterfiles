@@ -433,7 +433,6 @@ bundle common hs
                           "hs_policies/kerberos.cf",
                           "hs_policies/ldap.cf",
                           "hs_policies/lofarcam.cf",
-                          "hs_policies/mail.cf",
                           "hs_policies/mount.cf",
                           "hs_policies/mysql.cf",
                           "hs_policies/status.cf",
@@ -465,7 +464,6 @@ bundle common hs
                            "cloud",
                            "ftp",
                            "mysql_server",
-                           "mail_server",
                            "web_server",
 
                            # Misc
