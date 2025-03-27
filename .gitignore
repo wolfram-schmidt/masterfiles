@@ -12,7 +12,6 @@ stamp-h1
 /config.sub
 /configure
 /controls/update_def.cf
-/def.json.in
 /def.json
 /depcomp
 /install-sh
