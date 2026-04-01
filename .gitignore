@@ -2,6 +2,8 @@
 Makefile
 Makefile.in
 stamp-h1
+def.json
+update.cf
 /aclocal.m4
 /autom4te.cache
 /compile
@@ -50,6 +52,7 @@ build
 # Emacs
 .*\.~undo-tree~
 flycheck_*
+*~
 
 #VScode
 .vscode

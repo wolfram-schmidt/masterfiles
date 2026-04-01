@@ -8,6 +8,12 @@ bundle common inventory_debian
       "lsb_release_info" string => readfile("/etc/lsb-release","256"),
       comment => "Read more OS info" ;
 
+    has_os_release_info::
+      "os_release_codename" string => canonify("$(sys.os_release[VERSION_CODENAME])");
+      "os_release_numbers" slist => string_split("$(sys.os_release[VERSION_ID])", "\.", "2");
+      "os_release_major" string => nth(os_release_numbers, 0);
+      "os_release_minor" string => nth(os_release_numbers, 1);
+
     has_etc_linuxmint_info::
       "linuxmint_info"  string => readfile("/etc/linuxmint/info","1024"),
       comment => "Read Linux Mint specific info" ;
@@ -72,6 +78,12 @@ bundle common inventory_debian
 
       "linuxmint_$(mint_codename)" expression => "any",
       meta => { "inventory", "attribute_name=none" } ;
+      
+    has_os_release_info::
+      # Used for Ubuntu
+      "$(os_release_codename)" expression => "any",
+      comment => "class name matching codename",
+      meta => { "inventory", "attribute_name=none", "derived-from=sys.os_release[VERSION_CODENAME]" } ;
 
     debian_derived_evaluated::
       "debian_pure" expression => "debian.!(ubuntu|linuxmint)",
@@ -86,7 +98,13 @@ bundle common inventory_debian
       "has_lsb_release" expression => fileexists("/etc/lsb-release"),
       comment => "Check if we can get more info from /etc/lsb-release";
 
+      # Deprecated. Use sys.os_release to get info about Ubuntu
+      "has_os_release" expression => fileexists("/etc/os-release"),
+      comment => "Check if we can get more info from /etc/os-release";
+
+      "has_os_release_info" expression => isvariable("sys.os_release"),
+      comment => "Check if we can get more info from os-release array";
+
       "has_etc_linuxmint_info" expression => fileexists("/etc/linuxmint/info"),
       comment => "If this is a Linux Mint system, this *could* be available";
-
 }

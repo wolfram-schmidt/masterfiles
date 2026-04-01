@@ -242,6 +242,7 @@ dnl ######################################################################
 
 AC_CONFIG_FILES([Makefile
                 controls/update_def.cf
+		def.json
                 update.cf
                 promises.cf
                 standalone_self_upgrade.cf
