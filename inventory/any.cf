@@ -18,7 +18,10 @@ bundle common inventory_any
 
       "policy_version" -> { "ENT-9806" }
         string => "$(default:control_common.version)",
-        meta => { "inventory", "attribute_name=CFEngine policy version" };
+        meta => { "inventory", "attribute_name=CFEngine policy version" },
+        if => not(isvariable("sys.policy_version")),
+        comment => concat( "Don't inventory the policy version from policy when it's available",
+                    " as a sys var to avoid duplicate values being inventoried.");
 
   reports:
       "DEBUG|DEBUG_$(this.bundle)"::
@@ -34,7 +37,7 @@ bundle agent inventory_autorun
 {
   methods:
     !disable_inventory_LLDP::
-      "LLDP" usebundle => cfe_autorun_inventory_LLDP(),
+      "LLDP" usebundle => cfe_autorun_inventory_lldp(),
       handle => "cfe_internal_autorun_inventory_LLDP";
 
     !disable_inventory_package_refresh::
@@ -1063,7 +1066,7 @@ bundle agent cfe_autorun_inventory_dmidecode
       "DEBUG $(this.bundle): Obtained Physical memory (MB) = '$(total_physical_memory_MB)'";
 }
 
-bundle agent cfe_autorun_inventory_LLDP
+bundle agent cfe_autorun_inventory_lldp
 # @brief Do LLDP-based inventory
 #
 # This agent bundle runs lldpctl to discover information.  See
@@ -1104,7 +1107,11 @@ bundle agent cfe_autorun_inventory_packages
                                 fileexists("$(sys.workdir)/state/software_packages.csv"),
       };
 
-      "use_package_module_for_inventory" or => { "redhat", "debian", "suse", "sles", "alpinelinux", "windows" };
+      "use_package_module_for_inventory" -> { "ENT-13525" }
+        expression => some (".*", "@(default:control_common.package_inventory)"),
+        comment => concat( "If body common control defines package_inventory then the system",
+                           " is using package modules for inventory");
+
       "use_package_method_for_inventory" or => { "gentoo", "aix" };
       "use_package_method_generic_for_inventory"
         not => "use_package_module_for_inventory|use_package_method_for_inventory";
@@ -1148,7 +1155,6 @@ bundle agent cfe_autorun_inventory_packages
       "DEBUG $(this.bundle): we don't have the inventory files."
         if => "!have_inventory";
 }
-
 bundle agent cfe_autorun_inventory_policy_servers
 # @brief Inventory policy servers
 {

@@ -11,6 +11,14 @@ bundle common update_def
                            " system log (e.g. syslog or Windows Event Log).",
                            " (critical|error|warning|notice|info)" );
 
+      "control_common_protocol_version_defined" -> { "CFE-4543" }
+        expression => isvariable( "default:def.control_common_protocol_version" ),
+        comment => concat( "Defines the protocol version to use for all outgoing",
+                           " connections.",
+                           # It's challenging to keep this aligned with the core agent code
+                           # cf-promises --syntax-description=json | jq -r '.bodyTypes.common.attributes.protocol_version.range'
+                           " (1|classic|2|tls|3|cookie|4|filestream|latest)" );
+
   vars:
       "hub_binary_version" -> { "ENT-10664" }
         data => data_regextract(
@@ -147,6 +155,11 @@ bundle common update_def
         string => "$(sys.workdir)/backups",
         if => and( "mpf_update_control_agent_default_repository",
                    not( isvariable( "control_agent_default_repository" ) ) );
+
+      "control_agent_default_directory_create_mode" -> { "CFE-4590" }
+        string => ifelse( isvariable("control_agent_default_directory_create_mode"),
+                          "$(control_agent_default_directory_create_mode)",
+                          "700");
 
     enable_cfengine_enterprise_hub_ha::
       "standby_servers" slist => filter("$(sys.policy_hub)", "ha_def.ips", false, true, 10);

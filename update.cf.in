@@ -43,6 +43,9 @@ body common control
 
     control_common_system_log_level_defined::
         system_log_level => "$(default:def.control_common_system_log_level)";
+
+    control_common_protocol_version_defined::
+        protocol_version => "$(default:def.control_common_protocol_version)";
 }
 
 #############################################################################
@@ -183,8 +186,17 @@ bundle agent cfengine_internal_standalone_self_upgrade_execution
 body agent control
 # @brief Agent controls for update
 {
+
       ifelapsed => "1";
       skipidentify => "true";
+
+@if minimum_version(3.27.0)
+      # The order in which promises are evaluated (top_down|classic)
+        evaluation_order => "$(default:update_def.control_agent_update_evaluation_order)";
+
+      # The permissions automatically created directories should have
+        default_directory_create_mode => "$(default:update_def.control_agent_default_directory_create_mode)";
+@endif
 
     control_agent_agentfacility_configured::
 

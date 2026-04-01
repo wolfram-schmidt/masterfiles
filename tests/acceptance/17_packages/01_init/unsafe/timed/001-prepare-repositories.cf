@@ -13,18 +13,13 @@ body common control
               "../../../../../../$(sys.local_libdir)/files.cf",
               "../../../../../../$(sys.local_libdir)/commands.cf",
               "../../../packages-info.cf.sub",
+              "../../../meta_skip.cf.sub",
             };
   bundlesequence => { default("$(this.promise_filename)") };
 }
 
 bundle agent test
 {
-  meta:
-      "test_skip_needs_work" string => "!redhat.!debian",
-        meta => { "redmine5866" };
-      # RedHat 4 RPM has a bug which corrupts the RPM DB during our tests, so it is untestable.
-      "test_skip_unsupported" string => "redhat_4|centos_4";
-
   vars:
       "bundles" slist => { "repositories",
                            "signing_keys",
@@ -143,26 +138,26 @@ bundle agent signing_keys
 bundle agent apt_config
 {
   classes:
-    !(ubuntu_10|debian_6)::
+    !(ubuntu_10|debian_6|ubuntu_24)::
       "apt_config_ok" expression => "any",
         scope => "namespace";
 
   files:
+    ubuntu_24::
+      "/etc/apt/apt.conf.d/accept-older-pubkeys"
+        comment => "key in 17_packages/resources/gpg use rsa1024 which is not supported on Ubuntu-24.",
+        create => "true",
+        content => 'APT::Key::Assert-Pubkey-Algo ">=rsa1024";',
+        classes => if_successful("apt_config_ok");
+
     ubuntu_10|debian_6::
       # Work around bug: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=715494
       # Apt cache does not behave correctly if installing more than one package
       # per second.
       "/etc/apt/apt.conf.d/nocache"
         create => "true",
-        edit_line => no_apt_cache,
-        edit_defaults => empty,
+        content => 'Dir::Cache::pkgcache "";',
         classes => if_successful("apt_config_ok");
-}
-
-bundle edit_line no_apt_cache
-{
-  insert_lines:
-      'Dir::Cache::pkgcache "";';
 }
 
 bundle agent dpkg_multiarch

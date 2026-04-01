@@ -122,7 +122,7 @@ bundle common def
     any::
 
       "control_server_allowallconnects" -> { "ENT-10212" }
-        slist => {},
+        slist => { "127.0.0.1" , "::1", @(def.acl) },
         if => not( isvariable( "control_server_allowallconnects" ) ),
         comment => concat( "We want to define the default setting for",
                            " allowallconnects in body server control if not",
@@ -251,6 +251,20 @@ bundle common def
 
       # Agent Controls
 
+      "control_agent_evaluation_order" -> { "ENT-13495" }
+        string => ifelse( isvariable( $(this.promiser) ),
+                          "$(default:def.control_agent_evaluation_order)",
+                          "classic"),
+        comment => concat( 'We default to the classic "Normal Order"',
+                           ' for cf-agent if not otherwise specified' );
+
+      "control_agent_update_evaluation_order" -> { "ENT-13495" }
+        string => ifelse( isvariable( $(this.promiser) ),
+                          "$(default:def.control_agent_update_evaluation_order)",
+                          "classic"),
+        comment => concat( 'We default to the classic "Normal Order"',
+                           ' for cf-agent when running update.cf if not otherwise specified' );
+
       "control_agent_abortclasses" -> { "ENT-4823" }
         slist => { },
         comment => "The control body has a variable, so a valid list must be defined or the agent will error",
@@ -278,15 +292,40 @@ bundle common def
       # Common Controls
 
       # Because in some versions of cfengine bundlesequence in body common
-      # control does not support does not support iteration over data containers
-      # we must first pick out the bundles into a shallow container that we can
-      # then get a regular list from using getvalues().
+      # control does not support iteration over data containers we must first
+      # pick out the bundles into a shallow container that we can then get a
+      # regular list from using getvalues().
 
-      "tbse" data => mergedata( "def.control_common_bundlesequence_end" );
-      "bundlesequence_end" slist => getvalues( tbse );
+      "control_common_evaluation_order" -> { "ENT-13495" }
+        string => ifelse( isvariable( $(this.promiser) ),
+                          "$(default:def.control_common_evaluation_order)",
+                          "classic"),
+        comment => concat( 'We default to the classic "Normal Order"',
+                           ' for all components if not otherwise specified.' );
 
-      "tbse" data => mergedata( "def.control_common_bundlesequence_classification" );
-      "bundlesequence_classification" slist => getvalues( tbse );
+      "bundlesequence_end" -> { "CFE-4855" }
+        slist => { },
+        if => not( isvariable( "def.control_common_bundlesequence_end") ),
+        comment => concat( "We define an empty list so that the agent will not",
+                           " error about undefined variable when ",
+                           " def.bundlesequence_end is not defined." );
+      "bundlesequence_end" -> { "CFE-4855" }
+        slist => getvalues( mergedata( "def.control_common_bundlesequence_end" ) ),
+        comment => concat( "We define bundlesequence_end from Augments if it's",
+                           "  available. This allows for customization without",
+                           " modifying the vendored policy." );
+
+      "bundlesequence_classification" -> { "CFE-4855" }
+        slist => { },
+        if => not( isvariable( "def.control_common_bundlesequence_classification") ),
+        comment => concat( "We define an empty list so that the agent will not",
+                           " error about undefined variable when ",
+                           " def.bundlesequence_classification is not defined." );
+      "bundlesequence_classification" -> { "CFE-4855" }
+        slist => getvalues( mergedata( "def.control_common_bundlesequence_classification" ) ),
+        comment => concat( "We define bundlesequence_classification from Augments if it's",
+                           " available. This allows for customization without",
+                           " modifying the vendored policy." );
 
       "control_common_ignore_missing_bundles" -> { "CFE-2773" }
         string => ifelse( strcmp( $(control_common_ignore_missing_bundles), "true" ),
@@ -305,6 +344,12 @@ bundle common def
                            " the binary default of 10080 minutes (1 week)" );
 
       # Agent controls
+
+      "control_agent_default_directory_create_mode" -> { "CFE-4590" }
+        string => ifelse( isvariable("control_agent_default_directory_create_mode"),
+                          "$(control_agent_default_directory_create_mode)",
+                          "700");
+
 @if minimum_version(3.18.0)
       # TODO When 3.18 is the oldest supported LTS, redact this macro and associated protections
       "control_agent_files_single_copy" -> { "CFE-3622" }
@@ -399,6 +444,14 @@ bundle common def
         comment => concat( "The minimum log level required for log messages to go to the",
                            " system log (e.g. syslog or Windows Event Log).",
                            " (critical|error|warning|notice|info)" );
+
+      "control_common_protocol_version_defined" -> { "CFE-4543" }
+        expression => isvariable( "default:def.control_common_protocol_version" ),
+        comment => concat( "Defines the protocol version to use for all outgoing",
+                           " connections.",
+                           # It's challenging to keep this aligned with the core agent code
+                           # cf-promises --syntax-description=json | jq -r '.bodyTypes.common.attributes.protocol_version.range'
+                           " (1|classic|2|tls|3|cookie|4|filestream|latest)" );
   vars:
 
     debian::
@@ -504,6 +557,12 @@ bundle common def
         string  => "/usr/bin/sh",
         comment => "Define path to shell used by cf-runagent",
         handle  => "common_def_vars_solaris_cf_runagent_shell";
+
+    windows::
+      "cf_runagent_shell"
+        string  => "${sys.winsysdir}${const.dirsep}cmd.exe",
+        comment => "Define path to shell used by cf-runagent",
+        handle  => "common_def_vars_windows_cf_runagent_shell";
 
     !(windows|solaris)::
       "cf_runagent_shell"

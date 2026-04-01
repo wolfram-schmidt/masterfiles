@@ -79,6 +79,29 @@ As is typical for CFEngine, the policy and the configuration are mixed. In
 to `controls/update_def.cf` as you read this. We are skipping the nonessential
 ones.
 
+### Configure the evaluation order for cf-agent evaluated promises for update policy
+
+By default CFEngine processes promises in "Normal Order". Configure `default:def.control_agent_update_evaluation_order` to control the default promise evaluation order for `cf-agent` during the execution of the update policy. This variable is used to set `evaluation_order` in `body agent control` in `update.cf`
+
+Example Augments:
+
+```json
+{
+  "variables": {
+    "default:def.control_agent_update_evaluation_order": {
+      "value": "top_down",
+      "comment": "Our policy writers find it easier to understand policy that is evaluated in the order it is written."
+    }
+  }
+}
+```
+
+**History:**
+
+- Introduced in 3.27.0.
+
+**See also:** [Policy evaluation ordering](reference/language-concepts/policy-evaluation/), [Configure the evaluation order of cf-agent for main policy](#Configure the evaluation order of cf-agent for main policy), [`evaluation_order` in `body agent control`][cf-agent#evaluation_order], [Policy style guide on promise ordering][Policy style guide#Promise ordering]
+
 ### Configure upstream masterfiles location for policy update
 
 Want to get your policy from a place other than `/var/cfengine/masterfiles` on
@@ -313,6 +336,7 @@ By default Mission Portal listens for HTTP requests on port 80, redirecting to H
 
 * Added in CFEngine 3.6.0
 * Class renamed from `cfe_cfengine_enterprise_enable_plain_http` to `cfe_enterprise_disable_http_redirect_to_https` in CFEngine 3.23.0, 3.21.3
+* Redirection responsibility moved from Apache to PHP in CFEngine 3.27.0
 
 ### Disable cf\_promises\_validated check
 
@@ -653,10 +677,60 @@ This [augments file][Augments] is a way to specify that `cf-monitord` should be 
 }
 ```
 
+### Configure default directory creation permissions for update policy
+The `default_directory_create_mode` attribute in `body agent control` enables
+users to specify custom permissions (e.g., 0755) for automatically created
+directories, avoiding the need for explicit perms promises on each parent
+directory when deeper paths are required.
+
+The mode string may be symbolic (`a+rx`, `a=rx`) or numerical, like `chmod`.
+
+To override the default for **cf-agent** configure `default:update_def.control_agent_default_directory_create_mode`, for example:
+
+```json
+{
+    "variables": {
+        "default:update_def.control_agent_default_directory_create_mode": {
+            "value": "755"
+        }
+    }
+}
+```
+
+**See also:** [`default_directory_create_mode` in `body agent control`][cf-agent#default_directory_create_mode]
+
+**History:**
+
+- Added in CFEngine 3.27.0
+
+
 ## Main policy (promises.cf)
 
 The following settings are defined in `controls/def.cf` can be set from an
 [augments file][Augments].
+
+### Configure the evaluation order of cf-agent for main policy
+
+By default CFEngine processes promises in "Normal Order". Configure `default:def.control_agent_evaluation_order` to control the default promise evaluation order for `cf-agent`. This variable is used to set `evaluation_order` in `body agent control` in `promises.cf`
+
+Example Augments:
+
+```json
+{
+  "variables": {
+    "default:def.control_agent_evalution_order": {
+      "value": "top_down",
+      "comment": "Our policy writers find it easier to understand policy that is evaluated in the order it is written."
+    }
+  }
+}
+```
+
+**History:**
+
+- Introduced in 3.27.0.
+
+**See also:** [Policy evaluation ordering](reference/language-concepts/policy-evaluation/), [Configure cf-agent promise evaluation order for update policy](#Configure the evaluation order for cf-agent evaluated promises for update policy), [Policy style guide on promise ordering][Policy style guide#Promise ordering]
 
 ### Automatically migrate ignore_interfaces.rx to workdir
 
@@ -1306,6 +1380,38 @@ Example definition in augments file:
 }
 ```
 
+### Specify the CFEngine protocol version to use
+
+By default CFEngine will negotiate the newest protocol version available. Configuring `protocol_version` will restrict the protocol to the specified version.
+
+```json
+{
+  "variables": {
+    "default:def.control_common_protocol_version": {
+      "value": "filestream"
+      }
+  }
+}
+```
+
+**Notes:**
+
+- Valid values for `protocol_version` can be extracted from the syntax-description output of `cf-promises`.
+
+  For example:
+
+  ```command
+  cf-promises --syntax-description=json | jq -r '.bodyTypes.common.attributes.protocol_version.range'
+  ```
+
+  ```output
+  (1|classic|2|tls|3|cookie|4|filestream|latest)
+  ```
+
+**History:**
+
+- Added in CFEngine 3.27.0
+
 ### Configure the ciphers used by cf-serverd
 
 When `default:def.control_server_allowciphers` is defined `cf-serverd` will use the ciphers specified instead of the binary defaults.
@@ -1838,6 +1944,30 @@ This can be configured via [augments][Augments]:
 
 **History:** Added 3.11.0
 
+### Configure maxconnections for cf-agent
+
+`maxconnections` in `body agent control` configures the maximum number of
+outbound connections allowed by `cf-agent`. By default the MPF configures this to `30` matching the binary default.
+
+**Notes:**
+
+- Generally this would need to be increased for hosts who are copying files from many other hosts (a-typical, especially in Enterprise environments).
+
+This can be configured via [augments][Augments]:
+
+```json
+{
+  "variables": {
+    "default:def.control_agent_maxconnections": {
+      "value": "1000",
+      "comment": "On the hub we collect a data file from each client recently seen, this requires cf-agent to be allowed to make many connections"
+    }
+  }
+}
+```
+
+**History:** Added in CFEngine 3.10.0
+
 ### Configure networks allowed to make collect_calls (client initiated reporting)
 
 By default the hub allows collect calls (client initiated reporting) from the
@@ -1893,21 +2023,76 @@ memory related probes on policy servers:
 
 * Added in 3.10.2, 3.11.0
 
-### Configure Enterprise Mission Portal Docroot
+### Configure Enterprise Mission Portal Docroot sync
 
-Primarily for developer convenience, this setting allows you to easily disable the enforcement that the webapp consists of the packaged files in the docroot used for Mission Portal.
+This setting allows you to enable the enforcement that the Mission Portal web
+application docroot consists of only packaged files.
 
 ```json
 {
   "classes": {
-    "default:mpf_disable_mission_portal_docroot_sync_from_share_gui": {
-      "regular_expressions": [
-        "any"
+    "default:mpf_enable_mission_portal_docroot_sync_from_share_gui": {
+      "class_expressions": [
+        "enterprise_edition.am_policy_hub::"
       ]
     }
   }
 }
 ```
+
+**History:**
+
+* Added `default:mpf_disable_mission_portal_docroot_sync_from_share_gui` to
+  explicitly disable synchronization of the active docroot from share/GUI in
+  CFEngine 3.12.0
+
+* Removed `default:mpf_enable_mission_portal_docroot_sync_from_share_gui` in
+  CFEngine 3.27.0
+
+* Added `default:mpf_enable_mission_portal_docroot_sync_from_share_gui` in
+  CFEngine 3.27.0
+
+### Enable permission enforcement for files under `WORKDIR/httpd/htdocs/public/scripts`
+
+If the class `default:mpf_enable_mission_portal_public_docroot_scripts_not_dir_perms` is defined then permissions of non-directories will be enforced from policy.
+
+```json
+{
+  "classes": {
+    "default:mpf_enable_mission_portal_public_docroot_scripts_not_dir_perms": {
+      "class_expressions": [
+        "enterprise_edition.am_policy_hub::"
+      ]
+    }
+  }
+}
+```
+
+**History:**
+
+* Stopped enforcing permissions for `WORKDIR/httpd/htdocs/public/scripts` by default in CFEngine 3.27.0.
+
+* Added class `default:mpf_enable_mission_portal_public_docroot_scripts_not_dir_perms` to enable enforcement of permissions for this directory in CFEngine 3.27.0.
+
+### Enable permission enforcement for files under WORKDIR/share/GUI
+
+The MPF used to actively enforce permissions of files and directories under `$(sys.workdir)/share/GUI`, to re-enable this active permission enforcement define the class `default:mpf_enforce_workdir_share_gui_perms`.
+
+For example, to define it via Augments for CFEngine Enterprise Hubs:
+
+```json
+{
+  "classes": {
+    "default:mpf_enforce_workdir_share_gui_perms": {
+      "class_expressions": [
+        "enterprise_edition.am_policy_hub::"
+      ]
+    }
+  }
+}
+```
+
+* Added in CFEngine 3.27.0
 
 ### Configure Enterprise Mission Portal Apache SSLProtocol
 
@@ -2412,8 +2597,14 @@ The environment variables can also be extended by defining `def.control_agent_en
 ### Modules
 
 Modules executed by the `usemodule()` function are expected to be found in
-`$(sys.workdir)/modules` the modules are distributed to all remote agents by in
-the default policy.
+`$(sys.moduledir)` (typically `/var/cfengine/modules`) the modules are
+distributed to all remote agents by in the default policy.
+
+**History:**
+
+* `$(sys.moduledir)` was introduced in 3.26.0.
+  Previously, `$(sys.workdir)/modules` was used.
+  They both result in the same default - `/var/cfengine/modules`.
 
 ### Templates
 
@@ -2648,6 +2839,35 @@ Maximum time between automatic WAL checkpoints. If this value is specified witho
 **History:**
 
 * Added in 3.20.0, 3.18.2
+
+### Configure default directory creation permissions for main policy
+
+The `default_directory_create_mode` attribute in `body agent control` enables
+users to specify custom permissions (e.g., 0755) for automatically created
+directories, avoiding the need for explicit perms promises on each parent
+directory when deeper paths are required.
+
+The mode string may be symbolic (`a+rx`, `a=rx`) or numerical, like `chmod`.
+
+The default permissions can be overridden via Augments, for example:
+
+To override the default for **cf-agent** configure `default:def.control_agent_default_directory_create_mode`, for example:
+
+```json
+{
+    "variables": {
+        "default:def.control_agent_default_directory_create_mode": {
+            "value": "755"
+        }
+    }
+}
+```
+
+**See also:** [`default_directory_create_mode` in `body agent control`][cf-agent#default_directory_create_mode]
+
+**History:**
+
+- Added in CFEngine 3.27.0
 
 ## Recommendations
 

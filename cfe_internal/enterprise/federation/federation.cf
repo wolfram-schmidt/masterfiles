@@ -245,10 +245,17 @@ bundle agent semanage_installed
                   warn or fix based.";
     debian_6|debian_7|debian_8|ubuntu_12|ubuntu_14|ubuntu_16|rhel_5::
       "semanage_package" string => "policycoreutils";
-    debian_9|debian_10|ubuntu_18|redhat_8|centos_8|redhat_9|rocky_9::
-      "semanage_package" string => "policycoreutils-python-utils";
     redhat_6|centos_6|redhat_7|centos_7::
       "semanage_package" string => "policycoreutils-python";
+    any::
+      "semanage_package"
+        string => "policycoreutils-python-utils",
+        if => or(
+          and("debian", isgreaterthan("$(sys.os_version_major)", "8")),
+          and("ubuntu", isgreaterthan("$(sys.os_version_major)", "16")),
+          and("redhat|centos", isgreaterthan("$(sys.os_version_major)", "7")),
+          and("redhat|rocky", isgreaterthan("$(sys.os_version_major)", "8"))
+        );
 
   packages:
     debian|ubuntu::
@@ -809,9 +816,9 @@ bundle agent ensure_feeders
         arglist => {
                      "cfdb",
 @if minimum_version(3.24)
-                     "select ensure_feeders($(feeders_arg));"
+                     "select ensure_feeders($(feeders_arg));",
 @else
-                     `"select ensure_feeders($(feeders_arg));"`
+                     `"select ensure_feeders($(feeders_arg));"`,
 @endif
                    },
         classes => psql_wrapper_exit_codes,
@@ -950,6 +957,8 @@ bundle agent distributed_cleanup_setup
 {
   vars:
     "distributed_cleanup_dir" string => "/opt/cfengine/federation/cftransport/distributed_cleanup";
+    # TODO: Remove this once sys.keydir is always available (3.26+ only)
+    "keydir" string => ifelse(isvariable("sys.keydir"), "$(sys.keydir)", "$(sys.workdir)/ppkeys");
 
   files:
     am_superhub|am_feeder::
@@ -958,7 +967,7 @@ bundle agent distributed_cleanup_setup
         create => "true";
       "${distributed_cleanup_dir}/${sys.fqhost}.pub"
         perms => default:mog( "600", "$(cfengine_enterprise_federation:config.transport_user)", "root" ),
-        copy_from => default:local_cp("${sys.workdir}/ppkeys/localhost.pub");
+        copy_from => default:local_cp("${keydir}/localhost.pub");
       "${distributed_cleanup_dir}/${sys.fqhost}.cert"
         perms => default:mog( "600", "$(cfengine_enterprise_federation:config.transport_user)", "root" ),
         copy_from => default:local_cp("${sys.workdir}/httpd/ssl/certs/${sys.fqhost}.cert");

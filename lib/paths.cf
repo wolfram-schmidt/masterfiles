@@ -181,7 +181,7 @@ bundle common paths
       "path[tr]"       string => "/usr/bin/tr";
       "path[yum]"      string => "/usr/bin/yum";
 
-    archlinux::
+    archlinux|manjaro::
 
       "path[awk]"               string => "/usr/bin/awk";
       "path[bc]"                string => "/usr/bin/bc";
@@ -193,7 +193,9 @@ bundle common paths
       "path[df]"                string => "/usr/bin/df";
       "path[diff]"              string => "/usr/bin/diff";
       "path[dig]"               string => "/usr/bin/dig";
+      "path[cryptsetup]"        string => "/usr/bin/cryptsetup";
       "path[dmidecode]"         string => "/usr/bin/dmidecode";
+      "path[dmsetup]"           string => "/usr/bin/dmsetup";
       "path[echo]"              string => "/usr/bin/echo";
       "path[egrep]"             string => "/usr/bin/egrep";
       "path[ethtool]"           string => "/usr/bin/ethtool";
@@ -218,9 +220,14 @@ bundle common paths
       "path[tr]"                string => "/usr/bin/tr";
       #
       "path[pacman]"            string => "/usr/bin/pacman";
+      "path[pamac]"             string => "/usr/bin/pamac";
       "path[yaourt]"            string => "/usr/bin/yaourt";
       "path[useradd]"           string => "/usr/bin/useradd";
+      "path[userdel]"           string => "/usr/bin/userdel";
+      "path[usermod]"           string => "/usr/bin/usermod";
       "path[groupadd]"          string => "/usr/bin/groupadd";
+      "path[groupdel]"          string => "/usr/bin/groupdel";
+      "path[groupmod]"          string => "/usr/bin/groupmod";
       "path[ip]"                string => "/usr/bin/ip";
       "path[ifconfig]"          string => "/usr/bin/ifconfig";
       "path[journalctl]"        string => "/usr/bin/journalctl";
@@ -370,6 +377,8 @@ bundle common paths
       "path[df]"            string => "/bin/df";
       "path[diff]"          string => "/usr/bin/diff";
       "path[dig]"           string => "/usr/bin/dig";
+      "path[dmidecode]"     string => "/usr/sbin/dmidecode";
+      "path[cryptsetup]"    string => "/usr/sbin/cryptsetup";
       "path[dmsetup]"       string => "/usr/sbin/dmsetup";
       "path[domainname]"    string => "/bin/domainname";
       "path[echo]"          string => "/bin/echo";
@@ -386,7 +395,9 @@ bundle common paths
       "path[iptables_save]" string => "/sbin/iptables-save";
       "path[ls]"            string => "/bin/ls";
       "path[lshw]"          string => "/usr/sbin/lshw";
-      "path[lsof]"          string => "/usr/sbin/lsof";
+      "path[lsof]"          string => ifelse( "redhat_7|redhat_6", "/usr/sbin/lsof",
+                                              "/usr/bin/lsof"
+                                               );
       "path[netstat]"       string => "/bin/netstat";
       "path[nologin]"       string => "/sbin/nologin";
       "path[ping]"          string => "/usr/bin/ping";
@@ -467,6 +478,7 @@ bundle common paths
       "path[df]"            string => "/bin/df";
       "path[diff]"          string => "/usr/bin/diff";
       "path[dig]"           string => "/usr/bin/dig";
+      "path[cryptsetup]"    string => "/usr/sbin/cryptsetup";
       "path[dmidecode]"     string => "/usr/sbin/dmidecode";
       "path[dmsetup]"       string => "/usr/sbin/dmsetup";
       "path[domainname]"    string => "/bin/domainname";
@@ -533,8 +545,6 @@ bundle common paths
       "path[logger]"        string => "/usr/bin/logger";
 
     opensuse::
-      "path[ls]"        string => "/usr/bin/ls";
-      "path[lsof]"      string => "/usr/bin/lsof";
       "path[awk]"       string => "/usr/bin/awk";
       "path[cat]"       string => "/usr/bin/cat";
       "path[cksum]"     string => "/usr/bin/cksum";
@@ -544,7 +554,9 @@ bundle common paths
       "path[df]"        string => "/usr/bin/df";
       "path[diff]"      string => "/usr/bin/diff";
       "path[dig]"       string => "/usr/bin/dig";
+      "path[cryptsetup]" string => "/usr/sbin/cryptsetup";
       "path[dmidecode]" string => "/usr/sbin/dmidecode";
+      "path[dmsetup]"   string => "/usr/sbin/dmsetup";
       "path[echo]"      string => "/usr/bin/echo";
       "path[egrep]"     string => "/usr/bin/egrep";
       "path[ethtool]"   string => "/usr/sbin/ethtool";
@@ -593,7 +605,9 @@ bundle common paths
       "path[df]"            string => "/bin/df";
       "path[diff]"          string => "/usr/bin/diff";
       "path[dig]"           string => "/usr/bin/dig";
+      "path[cryptsetup]"    string => "/usr/sbin/cryptsetup";
       "path[dmidecode]"     string => "/usr/sbin/dmidecode";
+      "path[dmsetup]"       string => "/usr/sbin/dmsetup";
       "path[domainname]"    string => "/bin/domainname";
       "path[echo]"          string => "/bin/echo";
       "path[egrep]"         string => "/usr/bin/egrep";
