@@ -137,11 +137,6 @@ bundle common inventory_debian
         expression => fileexists("/etc/lsb-release"),
         comment => "Check if we can get more info from /etc/lsb-release";
 
-      # Deprecated. Use sys.os_release to get info about Ubuntu
-      "has_os_release"
-        expression => fileexists("/etc/os-release"),
-        comment => "Check if we can get more info from /etc/os-release";
-
       "has_os_release_info"
         expression => isvariable("sys.os_release"),
         comment => "Check if we can get more info from os-release array";
@@ -149,15 +144,4 @@ bundle common inventory_debian
       "has_etc_linuxmint_info"
         expression => fileexists("/etc/linuxmint/info"),
         comment => "If this is a Linux Mint system, this *could* be available";
-	
-  reports:
-
-    has_os_release:
-      "has /etc/lsb-release";
-     
-    has_os_release_info::
-      "Codename: $(os_release_codename)";
-      "Release numbers: $(os_release_numbers)";
-      "Major: $(os_release_major)";
-      "Minor: $(os_release_minor)";
 }
